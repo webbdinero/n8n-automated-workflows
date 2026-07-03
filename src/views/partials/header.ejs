@@ -34,6 +34,14 @@
         <% }); %>
       </nav>
       <span class="org-chip"><%= locals.org ? org.name : 'No organization' %></span>
+      <% if (locals.currentUser) { %>
+        <span class="org-chip" style="display:flex; align-items:center; gap:8px;">
+          <%= currentUser.name %><% if (currentUser.role === 'admin') { %> <span class="badge muted" style="background:rgba(255,255,255,0.15); color:#fff; border:none;">admin</span><% } %>
+          <form method="post" action="/logout" style="display:inline;">
+            <button type="submit" class="btn small ghost" style="color:#cde0ee; border-color:rgba(255,255,255,0.3);">Sign out</button>
+          </form>
+        </span>
+      <% } %>
     </div>
   </header>
   <main id="main" class="container">

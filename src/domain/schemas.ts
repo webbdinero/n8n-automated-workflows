@@ -13,6 +13,7 @@ import {
   TASK_STATUSES,
   TASK_TYPES,
   USAGE_KINDS,
+  USER_ROLES,
 } from "./constants.js";
 
 /* -------------------------------------------------------------------------- */
@@ -66,9 +67,27 @@ export const organizationSchema = z.object({
   subscription_status: z.enum(SUBSCRIPTION_STATUSES),
   trial_ends_at: z.string().nullable(),
   seats: z.number().int().nonnegative().nullable(),
+  // Per-org bearer token gating the JSON API (n8n / automation integration).
+  api_token: z.string().nullable(),
   created_at: z.string(),
 });
 export type Organization = z.infer<typeof organizationSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* User (authentication)                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** Public user record — never carries the password hash. */
+export const userSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  email: z.string(),
+  name: z.string(),
+  role: z.enum(USER_ROLES),
+  created_at: z.string(),
+  last_login_at: z.string().nullable(),
+});
+export type User = z.infer<typeof userSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Grant — input (what an importer / form / API supplies)                     */

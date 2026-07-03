@@ -12,6 +12,9 @@
 <% if (locals.query && query.subscription !== undefined) { %>
   <div class="banner ok">Subscription settings updated.</div>
 <% } %>
+<% if (locals.query && query.token_rotated !== undefined) { %>
+  <div class="banner ok">API token rotated. Update any n8n / automation credentials.</div>
+<% } %>
 
 <div class="grid cols-2">
   <section class="card" id="subscription">
@@ -32,6 +35,9 @@
       <span class="badge <%= entitlements.apiAccess ? 'tier-low' : 'muted' %>">API access <%= entitlements.apiAccess ? '✓' : '✗' %></span>
     </p>
     <hr class="sep" />
+    <% if (!currentUser || currentUser.role !== 'admin') { %>
+      <p class="small muted">Only administrators can change the plan or billing status.</p>
+    <% } else { %>
     <form method="post" action="/admin/subscription">
       <div class="form-grid">
         <div class="field">
@@ -63,6 +69,7 @@
       </div>
       <button class="btn" type="submit">Save subscription</button>
     </form>
+    <% } %>
   </section>
 
   <section class="card">
@@ -88,6 +95,34 @@
     </div>
   </section>
 </div>
+
+<section class="card" style="margin-top:16px;">
+  <h2>API access &amp; users</h2>
+  <p class="small muted">The JSON API and automation (n8n) authenticate with this per-org token. Send it as <code>Authorization: Bearer &lt;token&gt;</code> or <code>x-api-key</code>. Treat it like a password.</p>
+  <div class="field">
+    <label>API token</label>
+    <input type="text" readonly value="<%= apiToken || '(none)' %>" onclick="this.select()" style="font-family:ui-monospace,monospace;" />
+  </div>
+  <% if (currentUser && currentUser.role === 'admin') { %>
+    <form method="post" action="/admin/rotate-token" data-confirm="Rotate the API token? Existing integrations will stop working until updated.">
+      <button class="btn ghost small" type="submit">Rotate token</button>
+    </form>
+  <% } else { %>
+    <p class="small muted">Only administrators can rotate the token.</p>
+  <% } %>
+  <hr class="sep" />
+  <h3>Operators</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="nowrap">Last sign-in</th></tr></thead>
+      <tbody>
+        <% users.forEach(function (u) { %>
+          <tr><td><%= u.name %></td><td><%= u.email %></td><td><%= humanize(u.role) %></td><td class="small nowrap"><%= u.last_login_at ? fmtDateTime(u.last_login_at) : '—' %></td></tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</section>
 
 <section class="card" style="margin-top:16px;">
   <h2>Subscription history <span class="small muted">(immutable audit log)</span></h2>

@@ -4,6 +4,8 @@ import { createContainer, type Container } from "./container.js";
 import { formatHelpers } from "./web/format.js";
 import { registerWebRoutes } from "./routes/webRoutes.js";
 import { registerApiRoutes } from "./routes/apiRoutes.js";
+import { registerAuthRoutes } from "./routes/authRoutes.js";
+import { sessionLoader, requireWebAuth } from "./auth/middleware.js";
 import { deriveAlerts } from "./services/alertService.js";
 import { entitlementsFor } from "./domain/plans.js";
 import {
@@ -56,7 +58,18 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
     });
   }
 
-  // Per-request context: active org, actor, nav state, live alert count.
+  app.get("/healthz", (_req, res) => res.json({ ok: true }));
+
+  // Load the signed-cookie session (sets res.locals.currentUser | null).
+  app.use(sessionLoader(container));
+
+  // Login / logout (must be reachable without a session).
+  registerAuthRoutes(app, container);
+
+  // Everything past here requires a session (web) — the API uses token auth.
+  app.use(requireWebAuth());
+
+  // Per-request context: active org, real actor, nav state, live alert count.
   app.use((req: Request, res: Response, next: NextFunction) => {
     const org =
       container.orgs.findBySlug(config.defaultOrgSlug) ??
@@ -64,11 +77,11 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
       null;
     res.locals.org = org;
     res.locals.orgs = container.orgs.list();
-    res.locals.actor = "Pilot Admin";
+    res.locals.actor = res.locals.currentUser ? res.locals.currentUser.email : "system";
     res.locals.path = req.path;
     res.locals.query = req.query;
     res.locals.entitlements = org ? entitlementsFor(org) : null;
-    if (org) {
+    if (org && !req.path.startsWith("/api")) {
       const grants = container.grants.listAll(org.id);
       const tasks = container.tasks.listForOrg(org.id);
       res.locals.navAlertCount = deriveAlerts(grants, tasks).length;
@@ -80,8 +93,6 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
 
   registerWebRoutes(app, container);
   registerApiRoutes(app, container);
-
-  app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
   // 404
   app.use((req: Request, res: Response) => {

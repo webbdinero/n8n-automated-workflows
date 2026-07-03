@@ -70,6 +70,18 @@ npm start
 # → http://localhost:3000
 ```
 
+**Sign in.** The app is gated — `npm run seed` prints the pilot login and API
+token. Defaults:
+
+- **Email:** `admin@demo-borough.gov`  **Password:** `grantguard-pilot`
+  (override with `SEED_ADMIN_PASSWORD`; change before real use)
+- **API token** (for the JSON API / n8n): printed by seed and shown in
+  **Admin → API access**.
+
+If you start without seeding, the app bootstraps an admin for the default org
+and prints a generated password once (set `ADMIN_PASSWORD` to control it). Set
+`SESSION_SECRET` so sessions survive restarts.
+
 Then open the dashboard. Useful scripts:
 
 ```bash
@@ -88,6 +100,7 @@ to `.env` to override the port, DB path, or default org slug.
 
 | Area | Route | Notes |
 | --- | --- | --- |
+| **Sign in** | `/login` | Session-based auth gates all web routes; roles are `admin` / `member`. |
 | **Dashboard** | `/` | KPIs (portfolio value, unspent, at-risk, expiring ≤90d, overdue reports), risk distribution, funding mix, top alerts, recent activity. |
 | **Grants** | `/grants` | Search + filters (status, funding, risk tier, classification, owner) + sorting. |
 | **Grant detail** | `/grants/:id` | Overview, inline edit + review, reporting obligations, live risk breakdown, full audit trail. |
@@ -114,12 +127,25 @@ Billing-relevant actions (packet generation, exports, imports) are recorded in
 `usage_events` as a **metering basis** for usage-based / premium-report pricing,
 and surfaced in Admin. Manage the plan at **Admin → Subscription** (`POST /admin/subscription`).
 
+### Authentication
+
+- **Web UI:** session-based login (`/login`), scrypt-hashed passwords, signed
+  HttpOnly `SameSite=Lax` session cookie (Lax blocks cross-site POST → CSRF
+  mitigation for the pilot). Roles: `admin` (may change billing/subscription and
+  rotate the API token) vs `member`. The audit trail records the **real
+  signed-in user** as the actor on every change.
+- **JSON API:** per-org **bearer token** (`Authorization: Bearer <token>` or
+  `x-api-key`). Without a valid token, every `/api/*` route returns `401`. Manage
+  and rotate the token in **Admin → API access**.
+
 ### API examples
 
 ```bash
-curl localhost:3000/api/summary
-curl localhost:3000/api/grants?risk_tier=high
-curl -X POST localhost:3000/api/grants -H 'content-type: application/json' -H 'x-actor: jane' \
+TOKEN=gg_...   # from `npm run seed` output or Admin → API access
+curl -H "Authorization: Bearer $TOKEN" localhost:3000/api/summary
+curl -H "Authorization: Bearer $TOKEN" 'localhost:3000/api/grants?risk_tier=high'
+curl -X POST localhost:3000/api/grants \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -H 'x-actor: jane' \
   -d '{"grant_number":"SLFRF-9","title":"Park HVAC","funding_source":"ARPA_SLFRF",
        "award_amount":250000,"award_date":"2024-01-01","expenditure_deadline":"2026-12-31"}'
 ```
@@ -195,23 +221,23 @@ and isolated.
 
 ## Assumptions & scope (MVP)
 
-- **Single-tenant UI, multi-tenant-ready data.** The app operates on a default
-  org; `org_id` is threaded through every table and query, and peer orgs already
-  exist for benchmarking. Org switching + real auth are the next step.
-- **No auth yet** — the actor is a fixed "Pilot Admin"; the audit trail already
-  records an actor per event, so wiring real identity is drop-in.
+- **Auth is wired** (session login, roles, per-org API token); **multi-tenancy is
+  data-ready but the UI serves one active org.** `org_id` is threaded through every
+  table/query and users belong to an org — per-user org switching is the next step.
 - **Money stored as REAL dollars** (rounded to whole cents on input) for MVP
   simplicity; a future migration to integer cents is isolated to the repository layer.
 - **File upload** is done client-side (file → textarea via `FileReader`) to avoid
   multipart deps; paste and manual entry are first-class.
-- **Billing is metered, not charged.** `usage_events` + plan entitlements are the
-  hooks; wiring a payment processor (e.g. Stripe) is the next commercial step.
+- **Billing is metered, not charged.** `usage_events` + plan entitlements + roles
+  are the hooks; wiring a payment processor (e.g. Stripe) is the next commercial step.
+- **CSRF** relies on `SameSite=Lax` cookies (blocks cross-site POST). Token-based
+  CSRF protection on forms is a hardening follow-up.
 
 ## Next 5 features (defensibility + recurring revenue)
 
-1. **Auth + real multi-tenancy + billing (Stripe).** Login, per-user roles, org
-   switching, and Stripe subscriptions driven by the existing plan/`usage_events`
-   hooks. Converts the metering already in place into actual recurring revenue.
+1. **Stripe billing on the existing hooks.** Plans, entitlements, roles, and
+   `usage_events` are already in place; connect Stripe Checkout + webhooks to turn
+   the metering into actual recurring revenue and self-serve upgrades.
 2. **Scheduled report delivery.** Email the premium packet / portfolio digest on a
    cadence via the JSON API + n8n. Turns a one-off artifact into a recurring,
    billable deliverable — the core of the managed-service tier.
@@ -222,6 +248,6 @@ and isolated.
 4. **Alerts → action automation.** Threshold-based email/Slack escalation and
    auto-created reporting obligations from grant metadata — a system of action,
    which justifies managed-service pricing and raises switching cost.
-5. **Document vault + evidence linking.** Attach and version supporting docs
-   (invoices, subrecipient agreements, single-audit files) to grants/tasks and
-   embed them in packets. Deepens lock-in and completes the audit-ready story.
+5. **Full multi-tenant self-serve.** User management UI (invite/roles), org
+   switching, and signup — turning the data-ready multi-tenancy into a
+   self-onboarding funnel with seat-based expansion.

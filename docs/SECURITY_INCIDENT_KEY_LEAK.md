@@ -152,6 +152,12 @@ untouched for external reasons, and treat it as cosmetic.
 ## Prevention
 
 - Secrets live in `.env` (already git-ignored) or a secrets manager.
-- Enable GitHub **secret scanning + push protection** on the repository
-  (Settings → Code security). OpenAI-format keys are detected natively.
-- Optional: a pre-commit hook such as `gitleaks protect --staged`.
+- **CI secret scanning is enforced** via `.github/workflows/secret-scan.yml`
+  (gitleaks on every push/PR, full history). This runs regardless of repo
+  settings and covers forks/branches.
+- **Still required (native, one-time, owner action):** enable GitHub
+  **secret scanning + push protection** — Settings → Code security and analysis.
+  Push protection blocks a leak *before* it lands; the CI job above is the
+  backstop. There is no API in this toolchain to toggle it, so an admin must
+  flip it in the UI.
+- Optional local guard: a pre-commit hook such as `gitleaks protect --staged`.

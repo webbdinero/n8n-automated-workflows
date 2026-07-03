@@ -23,6 +23,7 @@ import {
   remainingGrants,
   PLAN_LABELS,
 } from "../domain/plans.js";
+import { requireAdmin } from "../auth/middleware.js";
 import { todayIso } from "../util/dates.js";
 
 /** Wrap an async handler so thrown errors reach Express's error middleware. */
@@ -406,6 +407,8 @@ export function registerWebRoutes(app: Express, c: Container): void {
         planLabel: PLAN_LABELS[org.plan as Plan],
         usage: c.usage.countsByKind(org.id),
         subscriptionHistory: c.subscriptionService.history(org.id, 25),
+        apiToken: c.orgs.ensureApiToken(org.id),
+        users: c.users.listForOrg(org.id),
         benchmark,
         counts: {
           grants: current.grants.length,
@@ -427,7 +430,17 @@ export function registerWebRoutes(app: Express, c: Container): void {
   );
 
   router.post(
+    "/admin/rotate-token",
+    requireAdmin(),
+    wrap((_req, res) => {
+      c.orgs.rotateApiToken(res.locals.org.id);
+      res.redirect("/admin?token_rotated=1");
+    }),
+  );
+
+  router.post(
     "/admin/subscription",
+    requireAdmin(),
     wrap((req, res) => {
       const org = res.locals.org;
       const change: {

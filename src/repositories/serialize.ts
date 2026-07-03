@@ -5,6 +5,7 @@ import type {
   Organization,
   UsageEvent,
   SubscriptionEvent,
+  User,
 } from "../domain/schemas.js";
 import type {
   Classification,
@@ -20,6 +21,7 @@ import type {
   TaskStatus,
   TaskType,
   UsageKind,
+  UserRole,
 } from "../domain/constants.js";
 
 /** A raw SQLite row is a bag of columns; we map it explicitly to typed records. */
@@ -44,7 +46,20 @@ export function rowToOrganization(r: Row): Organization {
     subscription_status: (str(r.subscription_status) || "trialing") as SubscriptionStatus,
     trial_ends_at: nstr(r.trial_ends_at),
     seats: nnum(r.seats),
+    api_token: nstr(r.api_token),
     created_at: str(r.created_at),
+  };
+}
+
+export function rowToUser(r: Row): User {
+  return {
+    id: str(r.id),
+    org_id: str(r.org_id),
+    email: str(r.email),
+    name: str(r.name),
+    role: str(r.role) as UserRole,
+    created_at: str(r.created_at),
+    last_login_at: nstr(r.last_login_at),
   };
 }
 

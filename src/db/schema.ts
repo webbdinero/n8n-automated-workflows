@@ -137,6 +137,21 @@ CREATE TABLE IF NOT EXISTS subscription_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sub_events_org ON subscription_events(org_id, at);
+
+-- Operator accounts. Password hashes are scrypt (salt embedded); the app never
+-- stores or logs plaintext. Roles: admin (may change billing) vs member.
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  org_id        TEXT NOT NULL REFERENCES organizations(id),
+  email         TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'member',
+  password_hash TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  last_login_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(org_id);
 `;
 
 /**
@@ -151,4 +166,5 @@ export const ORG_MIGRATION_COLUMNS: Array<[string, string]> = [
   ["subscription_status", "subscription_status TEXT NOT NULL DEFAULT 'trialing'"],
   ["trial_ends_at", "trial_ends_at TEXT"],
   ["seats", "seats INTEGER"],
+  ["api_token", "api_token TEXT"],
 ];

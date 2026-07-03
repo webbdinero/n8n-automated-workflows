@@ -1,9 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import type { Organization } from "../domain/schemas.js";
 import type { OrgType, Plan, SubscriptionStatus } from "../domain/constants.js";
 import { nowIso } from "../util/dates.js";
-import { rowToOrganization } from "./serialize.js";
+import { rowToOrganization, type Row } from "./serialize.js";
 
 export interface NewOrganization {
   slug: string;
@@ -17,6 +17,7 @@ export interface NewOrganization {
   subscription_status?: SubscriptionStatus;
   trial_ends_at?: string | null;
   seats?: number | null;
+  api_token?: string | null;
 }
 
 export class OrganizationRepository {
@@ -36,14 +37,15 @@ export class OrganizationRepository {
       subscription_status: input.subscription_status ?? "trialing",
       trial_ends_at: input.trial_ends_at ?? null,
       seats: input.seats ?? null,
+      api_token: input.api_token ?? null,
       created_at: nowIso(),
     };
     this.db
       .prepare(
         `INSERT INTO organizations
            (id, slug, name, type, state, population, region, data_sharing_opt_in,
-            plan, subscription_status, trial_ends_at, seats, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            plan, subscription_status, trial_ends_at, seats, api_token, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         org.id,
@@ -58,9 +60,36 @@ export class OrganizationRepository {
         org.subscription_status,
         org.trial_ends_at,
         org.seats,
+        org.api_token,
         org.created_at,
       );
     return org;
+  }
+
+  /** Look up an org by its API token (constant-work; token is high-entropy). */
+  findByApiToken(token: string): Organization | null {
+    if (!token) return null;
+    const row = this.db
+      .prepare(`SELECT * FROM organizations WHERE api_token = ?`)
+      .get(token);
+    return row ? rowToOrganization(row as Row) : null;
+  }
+
+  /** Return the org's API token, generating and persisting one if absent. */
+  ensureApiToken(id: string): string | null {
+    const org = this.findById(id);
+    if (!org) return null;
+    if (org.api_token) return org.api_token;
+    const token = `gg_${randomBytes(24).toString("hex")}`;
+    this.db.prepare(`UPDATE organizations SET api_token = ? WHERE id = ?`).run(token, id);
+    return token;
+  }
+
+  /** Rotate (or set) the org's API token; returns the new token. */
+  rotateApiToken(id: string): string {
+    const token = `gg_${randomBytes(24).toString("hex")}`;
+    this.db.prepare(`UPDATE organizations SET api_token = ? WHERE id = ?`).run(token, id);
+    return token;
   }
 
   /** Update subscription/plan fields (admin-driven). */

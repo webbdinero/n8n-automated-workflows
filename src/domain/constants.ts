@@ -116,6 +116,9 @@ export const USAGE_KINDS = [
   "import",
 ] as const;
 
+/** User roles. `admin` may change billing/subscription; `member` cannot. */
+export const USER_ROLES = ["admin", "member"] as const;
+
 export type FundingSource = (typeof FUNDING_SOURCES)[number];
 export type GrantStatus = (typeof GRANT_STATUSES)[number];
 export type Classification = (typeof CLASSIFICATIONS)[number];
@@ -129,3 +132,4 @@ export type RiskTier = (typeof RISK_TIERS)[number];
 export type Plan = (typeof PLANS)[number];
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type UsageKind = (typeof USAGE_KINDS)[number];
+export type UserRole = (typeof USER_ROLES)[number];

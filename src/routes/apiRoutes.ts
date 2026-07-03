@@ -6,6 +6,7 @@ import { deriveAlerts } from "../services/alertService.js";
 import { comparePeers } from "../services/benchmarkService.js";
 import { DuplicateGrantError, NotFoundError, ValidationError } from "../services/errors.js";
 import { can, remainingGrants, entitlementsFor } from "../domain/plans.js";
+import { requireApiToken } from "../auth/middleware.js";
 
 function wrap(fn: (req: Request, res: Response) => Promise<void> | void) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -20,6 +21,9 @@ function wrap(fn: (req: Request, res: Response) => Promise<void> | void) {
  */
 export function registerApiRoutes(app: Express, c: Container): void {
   const api = Router();
+
+  // Every /api route requires a valid per-org bearer token.
+  api.use(requireApiToken(c));
 
   api.get(
     "/grants",
