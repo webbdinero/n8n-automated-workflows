@@ -1,0 +1,74 @@
+<%- include('partials/header') %>
+<div class="page-head">
+  <div>
+    <h1>Import grants</h1>
+    <p class="subtitle">Paste CSV or JSON, or choose a file. Columns are auto-mapped and every record is validated.</p>
+  </div>
+</div>
+
+<% if (result) { %>
+  <div class="banner <%= result.created > 0 && result.failed === 0 ? 'ok' : 'info' %>">
+    <strong>Imported <%= result.created %></strong> of <%= result.total %> record(s).
+    <%= result.duplicates %> duplicate(s) skipped, <%= result.failed %> failed.
+  </div>
+  <% if (result.errors && result.errors.length) { %>
+    <div class="card" style="margin-bottom:16px;">
+      <h2>Skipped / failed rows</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="num">Row</th><th>Grant #</th><th>Reason</th></tr></thead>
+          <tbody>
+            <% result.errors.forEach(function (e) { %>
+              <tr><td class="num"><%= e.row %></td><td><%= e.grant_number || '—' %></td><td><%= e.message %></td></tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% } %>
+  <% if (result.created > 0) { %><p><a class="btn" href="/grants">View imported grants →</a></p><% } %>
+<% } %>
+
+<div class="grid cols-2">
+  <form class="card" method="post" action="/import">
+    <div class="field">
+      <label for="format">Format</label>
+      <select id="format" name="format">
+        <option value="csv" <%= format === 'csv' ? 'selected' : '' %>>CSV</option>
+        <option value="json" <%= format === 'json' ? 'selected' : '' %>>JSON</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="file">Choose a file <span class="hint">(optional — loads into the box below)</span></label>
+      <input type="file" id="file" accept=".csv,.json,.txt" data-file-into="#data" />
+    </div>
+    <div class="field">
+      <label for="data">Paste data</label>
+      <textarea id="data" name="data" placeholder="grant_number,title,funding_source,award_amount,award_date,expenditure_deadline&#10;..." required></textarea>
+    </div>
+    <button class="btn" type="submit">Import</button>
+  </form>
+
+  <div class="card">
+    <h2>Accepted columns</h2>
+    <p class="small muted">Headers are matched loosely (spaces, casing, and common aliases). Required: <code>grant_number</code>, <code>title</code>, <code>award_amount</code>, <code>award_date</code>, <code>expenditure_deadline</code>.</p>
+    <h3>Sample CSV</h3>
+    <div class="table-wrap">
+<pre class="small" style="background:var(--surface-2); padding:12px; border-radius:8px; overflow:auto;">grant_number,title,funding_source,grantor,award_amount,obligated_amount,expended_amount,award_date,obligation_deadline,expenditure_deadline,status,assigned_to,category
+SLFRF-2025-01,Stormwater Upgrades,ARPA_SLFRF,US Treasury,750000,750000,120000,2023-03-01,2024-12-31,2026-12-31,monitoring,J. Rivera,Water/Sewer Infrastructure
+CDBG-2025-02,Senior Center ADA,CDBG,HUD,300000,200000,50000,2024-06-01,2026-09-30,2027-06-30,active,M. Okafor,Public Facilities</pre>
+    </div>
+    <h3>Sample JSON</h3>
+<pre class="small" style="background:var(--surface-2); padding:12px; border-radius:8px; overflow:auto;">[
+  {
+    "grant_number": "EPA-2025-09",
+    "title": "Lead Line Inventory",
+    "funding_source": "EPA",
+    "award_amount": 250000,
+    "award_date": "2024-01-15",
+    "expenditure_deadline": "2027-12-31"
+  }
+]</pre>
+  </div>
+</div>
+<%- include('partials/footer') %>

@@ -1,0 +1,137 @@
+<%- include('partials/header') %>
+<% function v(name){ return (locals.values && values[name] != null) ? values[name] : ''; } %>
+<div class="page-head">
+  <div>
+    <h1>Add grant</h1>
+    <p class="subtitle">Manually record a single grant. For bulk loads use <a href="/import">Import</a>.</p>
+  </div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="banner err">
+    <strong>Could not save:</strong>
+    <ul style="margin:6px 0 0;">
+      <% errors.forEach(function (e) { %><li><%= e.path ? e.path + ': ' : '' %><%= e.message %></li><% }); %>
+    </ul>
+  </div>
+<% } %>
+
+<form method="post" action="/grants" class="stack">
+  <fieldset>
+    <legend>Identification</legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="grant_number">Grant number *</label>
+        <input id="grant_number" name="grant_number" required value="<%= v('grant_number') %>" />
+      </div>
+      <div class="field">
+        <label for="title">Title *</label>
+        <input id="title" name="title" required value="<%= v('title') %>" />
+      </div>
+      <div class="field">
+        <label for="funding_source">Funding source *</label>
+        <select id="funding_source" name="funding_source">
+          <% enums.FUNDING_SOURCES.forEach(function (s) { %>
+            <option value="<%= s %>" <%= v('funding_source') === s ? 'selected' : '' %>><%= s %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="program">Program</label>
+        <input id="program" name="program" value="<%= v('program') %>" />
+      </div>
+      <div class="field">
+        <label for="grantor">Grantor / awarding agency</label>
+        <input id="grantor" name="grantor" value="<%= v('grantor') %>" />
+      </div>
+      <div class="field">
+        <label for="subrecipient">Subrecipient</label>
+        <input id="subrecipient" name="subrecipient" value="<%= v('subrecipient') %>" />
+      </div>
+      <div class="field">
+        <label for="department">Department</label>
+        <input id="department" name="department" value="<%= v('department') %>" />
+      </div>
+      <div class="field">
+        <label for="category">Expenditure category</label>
+        <input id="category" name="category" value="<%= v('category') %>" />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Financials</legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="award_amount">Award amount *</label>
+        <input id="award_amount" name="award_amount" inputmode="decimal" required value="<%= v('award_amount') %>" placeholder="0.00" />
+      </div>
+      <div class="field">
+        <label for="obligated_amount">Obligated amount</label>
+        <input id="obligated_amount" name="obligated_amount" inputmode="decimal" value="<%= v('obligated_amount') %>" placeholder="0.00" />
+      </div>
+      <div class="field">
+        <label for="expended_amount">Expended amount</label>
+        <input id="expended_amount" name="expended_amount" inputmode="decimal" value="<%= v('expended_amount') %>" placeholder="0.00" />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Timeline</legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="award_date">Award date *</label>
+        <input id="award_date" name="award_date" type="date" required value="<%= v('award_date') %>" />
+      </div>
+      <div class="field">
+        <label for="obligation_deadline">Obligation deadline</label>
+        <input id="obligation_deadline" name="obligation_deadline" type="date" value="<%= v('obligation_deadline') %>" />
+      </div>
+      <div class="field">
+        <label for="expenditure_deadline">Expenditure deadline *</label>
+        <input id="expenditure_deadline" name="expenditure_deadline" type="date" required value="<%= v('expenditure_deadline') %>" />
+      </div>
+      <div class="field">
+        <label for="period_of_performance_end">Period of performance end</label>
+        <input id="period_of_performance_end" name="period_of_performance_end" type="date" value="<%= v('period_of_performance_end') %>" />
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Status & review</legend>
+    <div class="form-grid">
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          <% enums.GRANT_STATUSES.forEach(function (s) { %>
+            <option value="<%= s %>" <%= v('status') === s ? 'selected' : '' %>><%= humanize(s) %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="assigned_to">Owner</label>
+        <input id="assigned_to" name="assigned_to" value="<%= v('assigned_to') %>" />
+      </div>
+      <div class="field">
+        <label for="classification">Classification</label>
+        <select id="classification" name="classification">
+          <% enums.CLASSIFICATIONS.forEach(function (s) { %>
+            <option value="<%= s %>" <%= v('classification') === s ? 'selected' : '' %>><%= humanize(s) %></option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="review_notes">Review notes</label>
+      <textarea id="review_notes" name="review_notes" style="min-height:80px;"><%= v('review_notes') %></textarea>
+    </div>
+  </fieldset>
+
+  <div class="toolbar">
+    <button class="btn" type="submit">Save grant</button>
+    <a class="btn ghost" href="/grants">Cancel</a>
+  </div>
+</form>
+<%- include('partials/footer') %>

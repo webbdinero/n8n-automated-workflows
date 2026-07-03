@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= appName %></title>
+  <meta name="description" content="GrantGuard — compliance monitoring and audit-packet automation for public-sector grants." />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="/"><span class="dot" aria-hidden="true"></span><%= appName %></a>
+      <%
+        const path = String(locals.path || '/');
+        function active(href) {
+          if (href === '/') return path === '/';
+          return path === href || path.indexOf(href + '/') === 0 || path.indexOf(href) === 0;
+        }
+        const items = [
+          ['/', 'Dashboard'],
+          ['/grants', 'Grants'],
+          ['/alerts', 'Alerts'],
+          ['/import', 'Import'],
+          ['/admin', 'Admin'],
+        ];
+      %>
+      <nav class="main" aria-label="Primary">
+        <% items.forEach(function (it) { %>
+          <a href="<%= it[0] %>"<%= active(it[0]) ? ' aria-current="page"' : '' %>>
+            <%= it[1] %><% if (it[0] === '/alerts' && locals.navAlertCount) { %><span class="badge-count" aria-label="<%= navAlertCount %> open alerts"><%= navAlertCount %></span><% } %>
+          </a>
+        <% }); %>
+      </nav>
+      <span class="org-chip"><%= locals.org ? org.name : 'No organization' %></span>
+    </div>
+  </header>
+  <main id="main" class="container">
