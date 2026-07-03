@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
-import { SCHEMA_SQL } from "./schema.js";
+import { SCHEMA_SQL, ORG_MIGRATION_COLUMNS } from "./schema.js";
 
 // `node:sqlite` is an experimental Node 22 builtin that predates bundler
 // builtin-module lists (Vite/Vitest try to resolve it as a file and fail).
@@ -13,6 +13,20 @@ const nodeRequire = createRequire(import.meta.url);
 const { DatabaseSync } = nodeRequire("node:sqlite") as typeof import("node:sqlite");
 
 let db: DatabaseSyncType | null = null;
+
+/** Apply idempotent schema migrations (add columns missing on older DBs). */
+function migrate(conn: DatabaseSyncType): void {
+  const existing = new Set(
+    (conn.prepare("PRAGMA table_info(organizations)").all() as Array<{ name: string }>).map(
+      (r) => r.name,
+    ),
+  );
+  for (const [name, ddl] of ORG_MIGRATION_COLUMNS) {
+    if (!existing.has(name)) {
+      conn.exec(`ALTER TABLE organizations ADD COLUMN ${ddl}`);
+    }
+  }
+}
 
 /**
  * Returns a process-wide singleton SQLite connection, creating the database
@@ -31,6 +45,7 @@ export function getDb(): DatabaseSyncType {
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec("PRAGMA busy_timeout = 5000;");
   db.exec(SCHEMA_SQL);
+  migrate(db);
   return db;
 }
 
@@ -39,6 +54,7 @@ export function openMemoryDb(): DatabaseSyncType {
   const mem = new DatabaseSync(":memory:");
   mem.exec("PRAGMA foreign_keys = ON;");
   mem.exec(SCHEMA_SQL);
+  migrate(mem);
   return mem;
 }
 

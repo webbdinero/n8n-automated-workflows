@@ -6,23 +6,31 @@ import {
   FUNDING_SOURCES,
   GRANT_STATUSES,
   ORG_TYPES,
+  PLANS,
   RISK_TIERS,
+  SUBSCRIPTION_STATUSES,
   TASK_OUTCOMES,
   TASK_STATUSES,
   TASK_TYPES,
+  USAGE_KINDS,
 } from "./constants.js";
 
 /* -------------------------------------------------------------------------- */
 /* Primitive helpers                                                          */
 /* -------------------------------------------------------------------------- */
 
-/** Non-negative dollar amount; coerces "1,250.00" / "$1250" style strings. */
+/**
+ * Non-negative dollar amount; coerces "1,250.00" / "$1250" style strings and
+ * rounds to whole cents so REAL storage never accumulates float drift.
+ */
 export const money = z.preprocess((v) => {
   if (typeof v === "string") {
     const cleaned = v.replace(/[$,\s]/g, "");
     if (cleaned === "") return 0;
-    return Number(cleaned);
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : n;
   }
+  if (typeof v === "number") return Math.round(v * 100) / 100;
   return v;
 }, z.number().finite().nonnegative());
 
@@ -49,6 +57,15 @@ export const organizationSchema = z.object({
   type: z.enum(ORG_TYPES),
   state: z.string().length(2).nullable(),
   population: z.number().int().nonnegative().nullable(),
+  // Benchmark-ready cohorting.
+  region: z.string().nullable(),
+  // Consent to contribute anonymized data to peer benchmarks (moat / data product).
+  data_sharing_opt_in: z.boolean(),
+  // Monetization / subscription.
+  plan: z.enum(PLANS),
+  subscription_status: z.enum(SUBSCRIPTION_STATUSES),
+  trial_ends_at: z.string().nullable(),
+  seats: z.number().int().nonnegative().nullable(),
   created_at: z.string(),
 });
 export type Organization = z.infer<typeof organizationSchema>;
@@ -103,6 +120,21 @@ export const grantInputSchema = z
         code: z.ZodIssueCode.custom,
         path: ["obligated_amount"],
         message: "obligated_amount cannot exceed award_amount",
+      });
+    }
+    // Expenditure deadline must not precede the award date.
+    if (g.expenditure_deadline < g.award_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["expenditure_deadline"],
+        message: "expenditure_deadline cannot be before award_date",
+      });
+    }
+    if (g.obligation_deadline && g.obligation_deadline < g.award_date) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["obligation_deadline"],
+        message: "obligation_deadline cannot be before award_date",
       });
     }
   });
@@ -200,6 +232,22 @@ export const grantEventSchema = z.object({
   source: z.enum(EVENT_SOURCES),
 });
 export type GrantEvent = z.infer<typeof grantEventSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Usage event (metering — billing basis for metered/premium actions)          */
+/* -------------------------------------------------------------------------- */
+
+export const usageEventSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  at: z.string(),
+  kind: z.enum(USAGE_KINDS),
+  actor: z.string(),
+  quantity: z.number().int().nonnegative(),
+  ref: z.string().nullable(),
+  meta: z.string().nullable(),
+});
+export type UsageEvent = z.infer<typeof usageEventSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Partial update payload (from the detail page / API)                        */

@@ -95,8 +95,24 @@ to `.env` to override the port, DB path, or default org slug.
 | **Alerts** | `/alerts` | Live-derived, severity-ranked (deadline pressure, obligation gaps, overdue reports). |
 | **Admin** | `/admin` | Org settings, recompute, exports, **peer benchmarks**, proprietary-data map. |
 | **Compliance packet** | `/grants/:id/packet` | Printable, audit-ready packet (print → Save as PDF). |
-| **Exports** | `/exports/grants.csv`, `/exports/grants.json` | Portfolio CSV + full structured JSON (the customer's portable copy). |
+| **Exports** | `/exports/grants.csv`, `/exports/grants.json` | Portfolio CSV (all plans) + full structured JSON (premium — the customer's portable copy). |
 | **JSON API** | `/api/*` | `grants`, `grants/:id`, `POST/PATCH grants`, `summary`, `alerts`, `benchmarks` — the integration surface for n8n/automation. |
+
+### Subscription plans, gating & usage metering
+
+Each organization carries a **plan** (`trial`/`pilot`/`standard`/`enterprise`),
+`subscription_status`, trial end, and a `data_sharing_opt_in` consent flag.
+Entitlements live in `src/domain/plans.ts` (single source of truth) and gate
+premium capabilities:
+
+- **Benchmarks** (Admin + `/api/benchmarks`) — premium; only pools opted-in peers.
+- **Premium compliance packet** — adds an anonymized peer-benchmark section.
+- **Full JSON export** — premium; CSV is available on every plan.
+- **Grant limit** — trial caps at 15 grants (enforced on manual create, API, and import).
+
+Billing-relevant actions (packet generation, exports, imports) are recorded in
+`usage_events` as a **metering basis** for usage-based / premium-report pricing,
+and surfaced in Admin. Manage the plan at **Admin → Subscription** (`POST /admin/subscription`).
 
 ### API examples
 
@@ -184,22 +200,28 @@ and isolated.
   exist for benchmarking. Org switching + real auth are the next step.
 - **No auth yet** — the actor is a fixed "Pilot Admin"; the audit trail already
   records an actor per event, so wiring real identity is drop-in.
-- **Money stored as REAL dollars** for MVP simplicity; a future migration to
-  integer cents is isolated to the repository layer.
+- **Money stored as REAL dollars** (rounded to whole cents on input) for MVP
+  simplicity; a future migration to integer cents is isolated to the repository layer.
 - **File upload** is done client-side (file → textarea via `FileReader`) to avoid
   multipart deps; paste and manual entry are first-class.
+- **Billing is metered, not charged.** `usage_events` + plan entitlements are the
+  hooks; wiring a payment processor (e.g. Stripe) is the next commercial step.
 
-## Next 3 highest-value features (monetization + data moat)
+## Next 5 features (defensibility + recurring revenue)
 
-1. **Premium "Audit-Ready Packet" + scheduled report delivery.** Turn the existing
-   packet into a paid, branded, board/auditor-ready PDF (portfolio-level + single
-   audit prep), emailed on a cadence via the JSON API + n8n. Immediate upsell on
-   top of the base subscription.
-2. **Peer Benchmark Intelligence product.** Productize `benchmarkService` into an
-   anonymized, cohort-filtered "how you compare to peers" report (by population
-   band, funding source, region). This is the licensable data product and the
-   deepest moat — it improves automatically as more tenants onboard.
-3. **Deadline & spend-down automation (alerts → action).** Scheduled digests,
-   email/Slack escalation on threshold breaches, and auto-created reporting
-   obligations from grant metadata — converting GrantGuard from a system of record
-   into a system of action, which is what justifies managed-service pricing.
+1. **Auth + real multi-tenancy + billing (Stripe).** Login, per-user roles, org
+   switching, and Stripe subscriptions driven by the existing plan/`usage_events`
+   hooks. Converts the metering already in place into actual recurring revenue.
+2. **Scheduled report delivery.** Email the premium packet / portfolio digest on a
+   cadence via the JSON API + n8n. Turns a one-off artifact into a recurring,
+   billable deliverable — the core of the managed-service tier.
+3. **Peer Benchmark Intelligence product.** Cohort-filtered, anonymized "how you
+   compare to peers" reports (by population band, funding source, region) built on
+   the opt-in data set. The licensable data product and deepest moat — improves
+   automatically as tenants onboard.
+4. **Alerts → action automation.** Threshold-based email/Slack escalation and
+   auto-created reporting obligations from grant metadata — a system of action,
+   which justifies managed-service pricing and raises switching cost.
+5. **Document vault + evidence linking.** Attach and version supporting docs
+   (invoices, subrecipient agreements, single-audit files) to grants/tasks and
+   embed them in packets. Deepens lock-in and completes the audit-ready story.

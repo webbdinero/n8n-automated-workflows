@@ -2,64 +2,124 @@
 <div class="page-head">
   <div>
     <h1>Admin &amp; Settings</h1>
-    <p class="subtitle">Organization configuration, data operations, and peer benchmarks</p>
+    <p class="subtitle">Subscription, data operations, and peer benchmarks</p>
   </div>
 </div>
 
 <% if (locals.query && query.recomputed !== undefined) { %>
   <div class="banner ok">Recomputed risk scores. <%= query.recomputed %> grant(s) changed tier or score.</div>
 <% } %>
+<% if (locals.query && query.subscription !== undefined) { %>
+  <div class="banner ok">Subscription settings updated.</div>
+<% } %>
 
 <div class="grid cols-2">
-  <section class="card">
-    <h2>This organization</h2>
+  <section class="card" id="subscription">
+    <h2>Subscription</h2>
     <dl class="kv">
-      <dt>Name</dt><dd><%= org.name %></dd>
-      <dt>Slug</dt><dd><code><%= org.slug %></code></dd>
-      <dt>Type</dt><dd><%= humanize(org.type) %></dd>
-      <dt>State</dt><dd><%= org.state || '—' %></dd>
-      <dt>Population</dt><dd><%= org.population ? org.population.toLocaleString() : '—' %></dd>
+      <dt>Plan</dt><dd><span class="badge muted"><%= planLabel %></span></dd>
+      <dt>Status</dt><dd><%= humanize(org.subscription_status) %></dd>
+      <dt>Trial ends</dt><dd><%= org.trial_ends_at ? fmtDate(org.trial_ends_at) : '—' %></dd>
+      <dt>Seats included</dt><dd><%= entitlements.seatsIncluded %></dd>
+      <dt>Grant limit</dt><dd><%= entitlements.maxGrants == null ? 'Unlimited' : entitlements.maxGrants %> <span class="small muted">(<%= counts.grants %> used)</span></dd>
     </dl>
     <hr class="sep" />
-    <dl class="kv">
-      <dt>Grants</dt><dd><%= counts.grants %></dd>
-      <dt>Reporting obligations</dt><dd><%= counts.tasks %></dd>
-      <dt>Audit events</dt><dd><%= counts.events %></dd>
-    </dl>
+    <h3>Included features</h3>
+    <p>
+      <span class="badge <%= entitlements.benchmarks ? 'tier-low' : 'muted' %>">Benchmarks <%= entitlements.benchmarks ? '✓' : '✗' %></span>
+      <span class="badge <%= entitlements.premiumPackets ? 'tier-low' : 'muted' %>">Premium packets <%= entitlements.premiumPackets ? '✓' : '✗' %></span>
+      <span class="badge <%= entitlements.jsonExport ? 'tier-low' : 'muted' %>">JSON export <%= entitlements.jsonExport ? '✓' : '✗' %></span>
+      <span class="badge <%= entitlements.apiAccess ? 'tier-low' : 'muted' %>">API access <%= entitlements.apiAccess ? '✓' : '✗' %></span>
+    </p>
+    <hr class="sep" />
+    <form method="post" action="/admin/subscription">
+      <div class="form-grid">
+        <div class="field">
+          <label for="plan">Plan</label>
+          <select id="plan" name="plan">
+            <% enums.PLANS.forEach(function (p) { %>
+              <option value="<%= p %>" <%= org.plan === p ? 'selected' : '' %>><%= humanize(p) %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="subscription_status">Status</label>
+          <select id="subscription_status" name="subscription_status">
+            <% enums.SUBSCRIPTION_STATUSES.forEach(function (s) { %>
+              <option value="<%= s %>" <%= org.subscription_status === s ? 'selected' : '' %>><%= humanize(s) %></option>
+            <% }); %>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label style="font-weight:400;">
+          <input type="checkbox" name="data_sharing_opt_in" style="width:auto; margin-right:6px;" <%= org.data_sharing_opt_in ? 'checked' : '' %> />
+          Contribute anonymized data to peer benchmarks (required to appear in others' peer pool)
+        </label>
+      </div>
+      <button class="btn" type="submit">Save subscription</button>
+    </form>
   </section>
 
   <section class="card">
-    <h2>Data operations</h2>
-    <p class="small muted">Risk scores are recomputed on startup and whenever a grant or obligation changes. Trigger a manual pass here (useful as the date advances toward deadlines).</p>
+    <h2>Usage this account <span class="small muted">(metered — billing basis)</span></h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Metered action</th><th class="num">Count</th></tr></thead>
+        <tbody>
+          <% [['packet_generated','Compliance packets generated'],['export_csv','CSV exports'],['export_json','JSON exports'],['import','Grants imported']].forEach(function (u) { %>
+            <tr><td><%= u[1] %></td><td class="num"><%= usage[u[0]] || 0 %></td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <hr class="sep" />
+    <h3>Data operations</h3>
     <form method="post" action="/admin/recompute" style="margin-bottom:12px;">
       <button class="btn" type="submit">Recompute all risk scores</button>
     </form>
     <div class="toolbar">
       <a class="btn ghost" href="/exports/grants.csv">Export portfolio CSV</a>
-      <a class="btn ghost" href="/exports/grants.json">Export full JSON</a>
+      <a class="btn ghost" href="/exports/grants.json">Export full JSON<%= entitlements.jsonExport ? '' : ' 🔒' %></a>
     </div>
-    <p class="small muted" style="margin-top:10px;">The JSON export includes grants and reporting outcomes — the customer's portable copy of their proprietary record.</p>
   </section>
 </div>
 
 <section class="card" style="margin-top:16px;">
-  <h2>Peer benchmarks <span class="small muted">(anonymized · <%= benchmark.peerOrgCount %> peer org<%= benchmark.peerOrgCount === 1 ? '' : 's' %>)</span></h2>
-  <p class="small muted">Because every tenant records grants in the same canonical schema, GrantGuard can compare this organization to the pooled peer set — the seed of a licensable benchmarking product. Values shown for illustration on seed data.</p>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Metric</th><th class="num"><%= org.name %></th><th class="num">Peer pool</th></tr></thead>
-      <tbody>
-        <tr><td>Burn rate (spent / award)</td><td class="num"><%= fmtPct(benchmark.org.burnRatePct) %></td><td class="num"><%= fmtPct(benchmark.peer.burnRatePct) %></td></tr>
-        <tr><td>Unspent share</td><td class="num"><%= fmtPct(benchmark.org.unspentPct) %></td><td class="num"><%= fmtPct(benchmark.peer.unspentPct) %></td></tr>
-        <tr><td>On-time reporting rate</td><td class="num"><%= fmtPct(benchmark.org.onTimeReportPct) %></td><td class="num"><%= fmtPct(benchmark.peer.onTimeReportPct) %></td></tr>
-        <tr><td>Avg reporting turnaround</td>
-          <td class="num"><%= benchmark.org.avgTurnaroundDays != null ? benchmark.org.avgTurnaroundDays.toFixed(1) + ' d' : '—' %></td>
-          <td class="num"><%= benchmark.peer.avgTurnaroundDays != null ? benchmark.peer.avgTurnaroundDays.toFixed(1) + ' d' : '—' %></td>
-        </tr>
-        <tr><td>Share of active grants at risk</td><td class="num"><%= fmtPct(benchmark.org.atRiskPct) %></td><td class="num"><%= fmtPct(benchmark.peer.atRiskPct) %></td></tr>
-      </tbody>
-    </table>
-  </div>
+  <h2>Peer benchmarks <span class="small muted"><%= entitlements.benchmarks ? '(anonymized · ' + (benchmark ? benchmark.peerOrgCount : 0) + ' opted-in peer org(s))' : '(premium)' %></span></h2>
+  <% if (!entitlements.benchmarks || !benchmark) { %>
+    <p class="muted">Peer benchmarking is a premium feature. It compares this organization to the pooled, anonymized peer set — the seed of a licensable benchmarking product.</p>
+    <a class="btn" href="#subscription">Upgrade to unlock benchmarks</a>
+  <% } else { %>
+    <p class="small muted">Only organizations that opted in to data sharing are pooled. This is the intelligence layer and long-term data moat.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Metric</th><th class="num"><%= org.name %></th><th class="num">Peer pool</th></tr></thead>
+        <tbody>
+          <tr><td>Burn rate (spent / award)</td><td class="num"><%= fmtPct(benchmark.org.burnRatePct) %></td><td class="num"><%= fmtPct(benchmark.peer.burnRatePct) %></td></tr>
+          <tr><td>Unspent share</td><td class="num"><%= fmtPct(benchmark.org.unspentPct) %></td><td class="num"><%= fmtPct(benchmark.peer.unspentPct) %></td></tr>
+          <tr><td>On-time reporting rate</td><td class="num"><%= fmtPct(benchmark.org.onTimeReportPct) %></td><td class="num"><%= fmtPct(benchmark.peer.onTimeReportPct) %></td></tr>
+          <tr><td>Avg reporting turnaround</td>
+            <td class="num"><%= benchmark.org.avgTurnaroundDays != null ? benchmark.org.avgTurnaroundDays.toFixed(1) + ' d' : '—' %></td>
+            <td class="num"><%= benchmark.peer.avgTurnaroundDays != null ? benchmark.peer.avgTurnaroundDays.toFixed(1) + ' d' : '—' %></td>
+          </tr>
+          <tr><td>Share of active grants at risk</td><td class="num"><%= fmtPct(benchmark.org.atRiskPct) %></td><td class="num"><%= fmtPct(benchmark.peer.atRiskPct) %></td></tr>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+
+<section class="card" style="margin-top:16px;">
+  <h2>Organization</h2>
+  <dl class="kv">
+    <dt>Name</dt><dd><%= org.name %></dd>
+    <dt>Slug</dt><dd><code><%= org.slug %></code></dd>
+    <dt>Type</dt><dd><%= humanize(org.type) %></dd>
+    <dt>State / region</dt><dd><%= org.state || '—' %><%= org.region ? ' · ' + org.region : '' %></dd>
+    <dt>Population</dt><dd><%= org.population ? org.population.toLocaleString() : '—' %></dd>
+    <dt>Grants / obligations / events</dt><dd><%= counts.grants %> / <%= counts.tasks %> / <%= counts.events %></dd>
+  </dl>
 </section>
 
 <section class="card" style="margin-top:16px;">
@@ -69,24 +129,10 @@
       <thead><tr><th>Field / structure</th><th>Why it's proprietary &amp; defensible</th></tr></thead>
       <tbody>
         <tr><td><strong>Immutable audit trail</strong></td><td>Every change is appended, never overwritten — a longitudinal record no competitor can reconstruct and the basis of switching cost.</td></tr>
-        <tr><td><strong>Reporting outcomes &amp; turnaround</strong></td><td>On-time / late / missed and days-to-complete per obligation — measurable operational performance data.</td></tr>
-        <tr><td><strong>Reviewer classification &amp; notes</strong></td><td>Human compliance judgment (compliant / finding / remediation) that encodes expertise and trains future automation.</td></tr>
-        <tr><td><strong>Risk factor histories</strong></td><td>Scored snapshots over time enable trend and cohort analysis — the input to benchmarks and premium reports.</td></tr>
-        <tr><td><strong>Canonical cross-org schema</strong></td><td>Uniform structure across tenants makes anonymized benchmarking and data-licensing products possible.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section class="card" style="margin-top:16px;">
-  <h2>All organizations</h2>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Name</th><th>Slug</th><th>Type</th><th class="num">Population</th></tr></thead>
-      <tbody>
-        <% orgs.forEach(function (o) { %>
-          <tr><td><%= o.name %><%= o.id === org.id ? ' (active)' : '' %></td><td><code><%= o.slug %></code></td><td><%= humanize(o.type) %></td><td class="num"><%= o.population ? o.population.toLocaleString() : '—' %></td></tr>
-        <% }); %>
+        <tr><td><strong>Reporting outcomes &amp; turnaround</strong></td><td>On-time / late / missed and days-to-close per obligation — measurable operational performance data.</td></tr>
+        <tr><td><strong>Reviewer classification &amp; notes</strong></td><td>Human compliance judgment that encodes expertise and trains future automation.</td></tr>
+        <tr><td><strong>Metered usage records</strong></td><td>Packet/report and export activity — the basis for usage-based and premium-report billing.</td></tr>
+        <tr><td><strong>Canonical cross-org schema + opt-in</strong></td><td>Uniform structure plus data-sharing consent makes anonymized benchmarking and data-licensing products possible.</td></tr>
       </tbody>
     </table>
   </div>

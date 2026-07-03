@@ -11,7 +11,13 @@ import { deriveAlerts } from "../services/alertService.js";
 import { scoreGrant } from "../services/scoring.js";
 import { comparePeers } from "../services/benchmarkService.js";
 import { DuplicateGrantError, NotFoundError } from "../services/errors.js";
-import { TASK_OUTCOMES } from "../domain/constants.js";
+import { TASK_OUTCOMES, type Plan } from "../domain/constants.js";
+import {
+  can,
+  entitlementsFor,
+  remainingGrants,
+  PLAN_LABELS,
+} from "../domain/plans.js";
 import { todayIso } from "../util/dates.js";
 
 /** Wrap an async handler so thrown errors reach Express's error middleware. */
@@ -139,6 +145,15 @@ export function registerWebRoutes(app: Express, c: Container): void {
     "/grants",
     wrap((req, res) => {
       const org = res.locals.org;
+      const remaining = remainingGrants(org, c.grants.listAll(org.id).length);
+      if (remaining !== null && remaining <= 0) {
+        res.status(402).render("upgrade", {
+          title: "Grant limit reached",
+          feature: `the ${PLAN_LABELS[org.plan as Plan]} plan's grant limit`,
+          message: `Your plan allows up to ${entitlementsFor(org).maxGrants} grants. Upgrade to add more.`,
+        });
+        return;
+      }
       const cleaned = pickCleaned(req.body, GRANT_FIELDS, new Set(["review_notes"]));
       const parsed = grantInputSchema.safeParse(cleaned);
       if (!parsed.success) {
@@ -276,9 +291,18 @@ export function registerWebRoutes(app: Express, c: Container): void {
   router.get(
     "/grants/:id/packet",
     wrap((req, res) => {
+      const org = res.locals.org;
       try {
-        const packet = c.exportService.buildPacket(req.params.id!);
-        if (packet.grant.org_id !== res.locals.org.id) throw new NotFoundError();
+        const premium = can(org, "premiumPackets");
+        const packet = c.exportService.buildPacket(req.params.id!, { premium });
+        if (packet.grant.org_id !== org.id) throw new NotFoundError();
+        c.usage.record({
+          org_id: org.id,
+          kind: "packet_generated",
+          actor: res.locals.actor,
+          ref: packet.grant.id,
+          meta: premium ? "premium" : "standard",
+        });
         res.render("packet", { title: `Compliance Packet — ${packet.grant.grant_number}`, packet });
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -305,10 +329,20 @@ export function registerWebRoutes(app: Express, c: Container): void {
       const format = req.body.format === "json" ? "json" : "csv";
       const text = String(req.body.data ?? "");
       const ctx = { actor: res.locals.actor, source: format as "csv" | "json" };
+      const cap = remainingGrants(org, c.grants.listAll(org.id).length);
       const result =
         format === "json"
-          ? c.ingestService.ingestJson(org.id, text, ctx)
-          : c.ingestService.ingestCsv(org.id, text, ctx);
+          ? c.ingestService.ingestJson(org.id, text, ctx, cap)
+          : c.ingestService.ingestCsv(org.id, text, ctx, cap);
+      if (result.created > 0) {
+        c.usage.record({
+          org_id: org.id,
+          kind: "import",
+          actor: res.locals.actor,
+          quantity: result.created,
+          meta: format,
+        });
+      }
       res.render("import", { title: "Import Grants", result, format });
     }),
   );
@@ -336,20 +370,28 @@ export function registerWebRoutes(app: Express, c: Container): void {
     wrap((_req, res) => {
       const org = res.locals.org;
       const allOrgs = c.orgs.list();
+      const entitlements = entitlementsFor(org);
       const current = {
         grants: c.grants.listAll(org.id),
         tasks: c.tasks.listForOrg(org.id),
       };
-      const peers = allOrgs
-        .filter((o) => o.id !== org.id)
-        .map((o) => ({
-          grants: c.grants.listAll(o.id),
-          tasks: c.tasks.listForOrg(o.id),
-        }));
-      const benchmark = comparePeers(current, peers);
+      // Benchmarks are a premium feature and only pool opted-in peers.
+      let benchmark = null;
+      if (entitlements.benchmarks) {
+        const peers = allOrgs
+          .filter((o) => o.id !== org.id && o.data_sharing_opt_in)
+          .map((o) => ({
+            grants: c.grants.listAll(o.id),
+            tasks: c.tasks.listForOrg(o.id),
+          }));
+        benchmark = comparePeers(current, peers);
+      }
       res.render("admin", {
         title: "Admin & Settings",
         orgs: allOrgs,
+        entitlements,
+        planLabel: PLAN_LABELS[org.plan as Plan],
+        usage: c.usage.countsByKind(org.id),
         benchmark,
         counts: {
           grants: current.grants.length,
@@ -370,12 +412,28 @@ export function registerWebRoutes(app: Express, c: Container): void {
     }),
   );
 
+  router.post(
+    "/admin/subscription",
+    wrap((req, res) => {
+      const org = res.locals.org;
+      const changes: Record<string, unknown> = {};
+      if (typeof req.body.plan === "string") changes.plan = req.body.plan;
+      if (typeof req.body.subscription_status === "string") {
+        changes.subscription_status = req.body.subscription_status;
+      }
+      changes.data_sharing_opt_in = req.body.data_sharing_opt_in === "on";
+      c.orgs.updateSubscription(org.id, changes);
+      res.redirect("/admin?subscription=1");
+    }),
+  );
+
   /* --------------------------------- Exports ------------------------------ */
   router.get(
     "/exports/grants.csv",
     wrap((_req, res) => {
       const org = res.locals.org;
       const csv = c.exportService.portfolioCsv(org.id);
+      c.usage.record({ org_id: org.id, kind: "export_csv", actor: res.locals.actor });
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader(
         "Content-Disposition",
@@ -389,7 +447,18 @@ export function registerWebRoutes(app: Express, c: Container): void {
     "/exports/grants.json",
     wrap((_req, res) => {
       const org = res.locals.org;
+      // Full structured JSON export is a premium feature (the customer's
+      // portable proprietary dataset).
+      if (!can(org, "jsonExport")) {
+        res.status(402).render("upgrade", {
+          title: "Premium export",
+          feature: "the full JSON portfolio export",
+          message: "Upgrade to export your complete structured dataset (grants, tasks, and outcomes).",
+        });
+        return;
+      }
       const data = c.exportService.portfolioJson(org.id);
+      c.usage.record({ org_id: org.id, kind: "export_json", actor: res.locals.actor });
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader(
         "Content-Disposition",

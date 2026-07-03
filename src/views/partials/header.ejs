@@ -37,3 +37,17 @@
     </div>
   </header>
   <main id="main" class="container">
+    <%
+      if (locals.org && org.subscription_status === 'trialing') {
+        const daysLeft = org.trial_ends_at ? daysTo(org.trial_ends_at) : null;
+    %>
+      <div class="banner info no-print" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span>
+          <strong>Trial</strong> — <%= org.plan %> plan.
+          <% if (daysLeft != null) { %>
+            <%= daysLeft >= 0 ? daysLeft + ' day(s) left' : 'trial ended ' + Math.abs(daysLeft) + ' day(s) ago' %>.
+          <% } %>
+        </span>
+        <a class="btn small" href="/admin#subscription">Upgrade</a>
+      </div>
+    <% } %>

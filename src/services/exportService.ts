@@ -10,12 +10,14 @@ import type {
 } from "../domain/schemas.js";
 import { NotFoundError } from "./errors.js";
 import { scoreGrant, type RiskResult } from "./scoring.js";
+import { comparePeers, type BenchmarkComparison } from "./benchmarkService.js";
 import { toCsv } from "./csv.js";
 import { nowIso, todayIso } from "../util/dates.js";
 
 export interface CompliancePacket {
   generated_at: string;
   as_of: string;
+  premium: boolean;
   org: Organization;
   grant: GrantRecord;
   risk: RiskResult;
@@ -27,6 +29,14 @@ export interface CompliancePacket {
     pctSpent: number;
     pctObligated: number;
   };
+  /** Populated only for premium packets: peer benchmark comparison. */
+  benchmark: BenchmarkComparison | null;
+}
+
+export interface PacketOptions {
+  asOf?: string;
+  /** Include the premium peer-benchmark section. */
+  premium?: boolean;
 }
 
 /**
@@ -43,13 +53,32 @@ export class ExportService {
     private readonly orgs: OrganizationRepository,
   ) {}
 
-  buildPacket(grantId: string, asOf: string = todayIso()): CompliancePacket {
+  buildPacket(grantId: string, opts: PacketOptions = {}): CompliancePacket {
+    const asOf = opts.asOf ?? todayIso();
+    const premium = opts.premium ?? false;
     const grant = this.grants.findById(grantId);
     if (!grant) throw new NotFoundError(`Grant ${grantId} not found`);
     const org = this.orgs.findById(grant.org_id);
     if (!org) throw new NotFoundError("Organization not found");
     const tasks = this.tasks.listForGrant(grantId);
     const events = this.events.listForGrant(grantId);
+
+    // Premium packets include an anonymized peer-benchmark comparison, pooled
+    // from organizations that have opted in to data sharing.
+    let benchmark: BenchmarkComparison | null = null;
+    if (premium) {
+      const peers = this.orgs
+        .list()
+        .filter((o) => o.id !== org.id && o.data_sharing_opt_in)
+        .map((o) => ({
+          grants: this.grants.listAll(o.id),
+          tasks: this.tasks.listForOrg(o.id),
+        }));
+      benchmark = comparePeers(
+        { grants: this.grants.listAll(org.id), tasks: this.tasks.listForOrg(org.id) },
+        peers,
+      );
+    }
     const risk = scoreGrant(
       {
         award_amount: grant.award_amount,
@@ -71,6 +100,7 @@ export class ExportService {
     return {
       generated_at: nowIso(),
       as_of: asOf,
+      premium,
       org,
       grant,
       risk,
@@ -82,6 +112,7 @@ export class ExportService {
         pctSpent: grant.award_amount > 0 ? grant.expended_amount / grant.award_amount : 0,
         pctObligated: grant.award_amount > 0 ? grant.obligated_amount / grant.award_amount : 0,
       },
+      benchmark,
     };
   }
 

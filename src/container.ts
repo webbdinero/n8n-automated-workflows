@@ -4,6 +4,7 @@ import { OrganizationRepository } from "./repositories/organizationRepository.js
 import { GrantRepository } from "./repositories/grantRepository.js";
 import { TaskRepository } from "./repositories/taskRepository.js";
 import { EventRepository } from "./repositories/eventRepository.js";
+import { UsageRepository } from "./repositories/usageRepository.js";
 import { GrantService } from "./services/grantService.js";
 import { IngestService } from "./services/ingestService.js";
 import { ExportService } from "./services/exportService.js";
@@ -17,6 +18,7 @@ export function createContainer(db: DatabaseSync = getDb()) {
   const grants = new GrantRepository(db);
   const tasks = new TaskRepository(db);
   const events = new EventRepository(db);
+  const usage = new UsageRepository(db);
 
   const grantService = new GrantService(grants, tasks, events);
   const ingestService = new IngestService(grantService);
@@ -28,6 +30,7 @@ export function createContainer(db: DatabaseSync = getDb()) {
     grants,
     tasks,
     events,
+    usage,
     grantService,
     ingestService,
     exportService,

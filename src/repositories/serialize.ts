@@ -1,4 +1,10 @@
-import type { GrantRecord, TaskRecord, GrantEvent, Organization } from "../domain/schemas.js";
+import type {
+  GrantRecord,
+  TaskRecord,
+  GrantEvent,
+  Organization,
+  UsageEvent,
+} from "../domain/schemas.js";
 import type {
   Classification,
   EventSource,
@@ -6,10 +12,13 @@ import type {
   FundingSource,
   GrantStatus,
   OrgType,
+  Plan,
   RiskTier,
+  SubscriptionStatus,
   TaskOutcome,
   TaskStatus,
   TaskType,
+  UsageKind,
 } from "../domain/constants.js";
 
 /** A raw SQLite row is a bag of columns; we map it explicitly to typed records. */
@@ -28,7 +37,26 @@ export function rowToOrganization(r: Row): Organization {
     type: str(r.type) as OrgType,
     state: nstr(r.state),
     population: nnum(r.population),
+    region: nstr(r.region),
+    data_sharing_opt_in: Number(r.data_sharing_opt_in ?? 0) === 1,
+    plan: (str(r.plan) || "trial") as Plan,
+    subscription_status: (str(r.subscription_status) || "trialing") as SubscriptionStatus,
+    trial_ends_at: nstr(r.trial_ends_at),
+    seats: nnum(r.seats),
     created_at: str(r.created_at),
+  };
+}
+
+export function rowToUsageEvent(r: Row): UsageEvent {
+  return {
+    id: str(r.id),
+    org_id: str(r.org_id),
+    at: str(r.at),
+    kind: str(r.kind) as UsageKind,
+    actor: str(r.actor),
+    quantity: num(r.quantity),
+    ref: nstr(r.ref),
+    meta: nstr(r.meta),
   };
 }
 

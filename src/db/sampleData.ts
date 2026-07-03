@@ -1,6 +1,7 @@
 import type { Container } from "../container.js";
+import type { NewOrganization } from "../repositories/organizationRepository.js";
 import { grantInputSchema } from "../domain/schemas.js";
-import type { OrgType, TaskType, TaskOutcome } from "../domain/constants.js";
+import type { TaskType, TaskOutcome } from "../domain/constants.js";
 import { nowIso } from "../util/dates.js";
 
 /**
@@ -287,15 +288,8 @@ const PEER_B_GRANTS: SampleGrant[] = [
   },
 ];
 
-function seedOrg(
-  c: Container,
-  slug: string,
-  name: string,
-  type: OrgType,
-  population: number,
-  samples: SampleGrant[],
-): void {
-  const org = c.orgs.ensure({ slug, name, type, state: "PA", population });
+function seedOrg(c: Container, orgConfig: NewOrganization, samples: SampleGrant[]): void {
+  const org = c.orgs.ensure(orgConfig);
   if (c.grants.listAll(org.id).length > 0) return; // idempotent
 
   for (const sample of samples) {
@@ -350,7 +344,53 @@ function seedOrg(
 
 /** Populate the database with the pilot org + two peer orgs. Idempotent. */
 export function seedDatabase(c: Container): void {
-  seedOrg(c, "demo-borough", "Demo Borough (Pilot)", "municipality", 18_500, PILOT_GRANTS);
-  seedOrg(c, "peer-township", "Peer Township", "municipality", 14_200, PEER_A_GRANTS);
-  seedOrg(c, "peer-authority", "Regional Water Authority", "authority", 42_000, PEER_B_GRANTS);
+  seedOrg(
+    c,
+    {
+      slug: "demo-borough",
+      name: "Demo Borough (Pilot)",
+      type: "municipality",
+      state: "PA",
+      population: 18_500,
+      region: "Northeast",
+      data_sharing_opt_in: true,
+      plan: "pilot",
+      subscription_status: "active",
+      seats: 5,
+    },
+    PILOT_GRANTS,
+  );
+  seedOrg(
+    c,
+    {
+      slug: "peer-township",
+      name: "Peer Township",
+      type: "municipality",
+      state: "PA",
+      population: 14_200,
+      region: "Northeast",
+      data_sharing_opt_in: true,
+      plan: "standard",
+      subscription_status: "active",
+      seats: 10,
+    },
+    PEER_A_GRANTS,
+  );
+  seedOrg(
+    c,
+    {
+      slug: "peer-authority",
+      name: "Regional Water Authority",
+      type: "authority",
+      state: "PA",
+      population: 42_000,
+      region: "Northeast",
+      data_sharing_opt_in: true,
+      plan: "trial",
+      subscription_status: "trialing",
+      trial_ends_at: "2026-07-24",
+      seats: 2,
+    },
+    PEER_B_GRANTS,
+  );
 }

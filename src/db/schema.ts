@@ -12,13 +12,19 @@
  */
 export const SCHEMA_SQL = /* sql */ `
 CREATE TABLE IF NOT EXISTS organizations (
-  id          TEXT PRIMARY KEY,
-  slug        TEXT NOT NULL UNIQUE,
-  name        TEXT NOT NULL,
-  type        TEXT NOT NULL,
-  state       TEXT,
-  population  INTEGER,
-  created_at  TEXT NOT NULL
+  id                   TEXT PRIMARY KEY,
+  slug                 TEXT NOT NULL UNIQUE,
+  name                 TEXT NOT NULL,
+  type                 TEXT NOT NULL,
+  state                TEXT,
+  population           INTEGER,
+  region               TEXT,
+  data_sharing_opt_in  INTEGER NOT NULL DEFAULT 0,
+  plan                 TEXT NOT NULL DEFAULT 'trial',
+  subscription_status  TEXT NOT NULL DEFAULT 'trialing',
+  trial_ends_at        TEXT,
+  seats                INTEGER,
+  created_at           TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS grants (
@@ -101,4 +107,33 @@ CREATE TABLE IF NOT EXISTS grant_events (
 
 CREATE INDEX IF NOT EXISTS idx_events_grant ON grant_events(grant_id, at);
 CREATE INDEX IF NOT EXISTS idx_events_org   ON grant_events(org_id, at);
+
+-- Metered, billing-relevant actions (packet/report generation, exports).
+-- The basis for usage-based pricing and premium-report accounting.
+CREATE TABLE IF NOT EXISTS usage_events (
+  id        TEXT PRIMARY KEY,
+  org_id    TEXT NOT NULL REFERENCES organizations(id),
+  at        TEXT NOT NULL,
+  kind      TEXT NOT NULL,
+  actor     TEXT NOT NULL,
+  quantity  INTEGER NOT NULL DEFAULT 1,
+  ref       TEXT,
+  meta      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_org ON usage_events(org_id, at);
 `;
+
+/**
+ * Idempotent column additions for databases created before the subscription /
+ * benchmark fields existed. CREATE TABLE IF NOT EXISTS won't alter an existing
+ * table, so we add missing columns explicitly. Safe to run on every boot.
+ */
+export const ORG_MIGRATION_COLUMNS: Array<[string, string]> = [
+  ["region", "region TEXT"],
+  ["data_sharing_opt_in", "data_sharing_opt_in INTEGER NOT NULL DEFAULT 0"],
+  ["plan", "plan TEXT NOT NULL DEFAULT 'trial'"],
+  ["subscription_status", "subscription_status TEXT NOT NULL DEFAULT 'trialing'"],
+  ["trial_ends_at", "trial_ends_at TEXT"],
+  ["seats", "seats INTEGER"],
+];

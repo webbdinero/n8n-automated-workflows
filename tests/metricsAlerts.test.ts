@@ -57,7 +57,7 @@ describe("deriveAlerts", () => {
     const { c, org } = newCtx();
     c.grantService.createGrant(
       org.id,
-      grantInput({ grant_number: "C-1", status: "closed", expended_amount: 0, expenditure_deadline: "2020-01-01" }),
+      grantInput({ grant_number: "C-1", status: "closed", expended_amount: 0, award_date: "2019-01-01", expenditure_deadline: "2020-01-01" }),
       { actor: "u", source: "manual" },
     );
     const alerts = deriveAlerts(c.grants.listAll(org.id), c.tasks.listForOrg(org.id), ASOF);

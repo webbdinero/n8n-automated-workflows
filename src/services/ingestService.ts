@@ -192,6 +192,7 @@ export class IngestService {
     orgId: string,
     records: Array<Record<string, unknown>>,
     ctx: ActorContext,
+    cap: number | null = null,
   ): IngestResult {
     const result: IngestResult = {
       created: 0,
@@ -204,6 +205,16 @@ export class IngestService {
 
     records.forEach((raw, index) => {
       const rowNum = index + 1;
+      // Enforce the plan's grant limit — new rows beyond the cap fail with an
+      // upgrade prompt rather than silently importing.
+      if (cap != null && result.created >= cap) {
+        result.failed++;
+        result.errors.push({
+          row: rowNum,
+          message: "plan grant limit reached — upgrade to add more grants",
+        });
+        return;
+      }
       const mapped = mapRawGrant(raw);
       const parsed = grantInputSchema.safeParse(mapped);
       if (!parsed.success) {
@@ -241,12 +252,12 @@ export class IngestService {
     return result;
   }
 
-  ingestCsv(orgId: string, text: string, ctx: ActorContext): IngestResult {
+  ingestCsv(orgId: string, text: string, ctx: ActorContext, cap: number | null = null): IngestResult {
     const { rows } = parseCsv(text);
-    return this.ingestRecords(orgId, rows, ctx);
+    return this.ingestRecords(orgId, rows, ctx, cap);
   }
 
-  ingestJson(orgId: string, text: string, ctx: ActorContext): IngestResult {
+  ingestJson(orgId: string, text: string, ctx: ActorContext, cap: number | null = null): IngestResult {
     let data: unknown;
     try {
       data = JSON.parse(text);
@@ -269,6 +280,6 @@ export class IngestService {
     } else if (data && typeof data === "object") {
       records = [data as Record<string, unknown>];
     }
-    return this.ingestRecords(orgId, records, ctx);
+    return this.ingestRecords(orgId, records, ctx, cap);
   }
 }

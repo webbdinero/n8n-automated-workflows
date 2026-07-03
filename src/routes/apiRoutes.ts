@@ -4,7 +4,8 @@ import { grantInputSchema, grantUpdateSchema } from "../domain/schemas.js";
 import { portfolioSummary } from "../services/metrics.js";
 import { deriveAlerts } from "../services/alertService.js";
 import { comparePeers } from "../services/benchmarkService.js";
-import { DuplicateGrantError, NotFoundError } from "../services/errors.js";
+import { DuplicateGrantError, NotFoundError, ValidationError } from "../services/errors.js";
+import { can, remainingGrants, entitlementsFor } from "../domain/plans.js";
 
 function wrap(fn: (req: Request, res: Response) => Promise<void> | void) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -56,6 +57,14 @@ export function registerApiRoutes(app: Express, c: Container): void {
     "/grants",
     wrap((req, res) => {
       const org = res.locals.org;
+      const remaining = remainingGrants(org, c.grants.listAll(org.id).length);
+      if (remaining !== null && remaining <= 0) {
+        res.status(402).json({
+          error: "plan_limit_reached",
+          message: `Plan allows up to ${entitlementsFor(org).maxGrants} grants. Upgrade to add more.`,
+        });
+        return;
+      }
       const parsed = grantInputSchema.safeParse(req.body);
       if (!parsed.success) {
         res.status(400).json({
@@ -137,17 +146,41 @@ export function registerApiRoutes(app: Express, c: Container): void {
     "/benchmarks",
     wrap((_req, res) => {
       const org = res.locals.org;
+      if (!can(org, "benchmarks")) {
+        res.status(402).json({ error: "upgrade_required", feature: "benchmarks" });
+        return;
+      }
       const allOrgs = c.orgs.list();
       const current = {
         grants: c.grants.listAll(org.id),
         tasks: c.tasks.listForOrg(org.id),
       };
       const peers = allOrgs
-        .filter((o) => o.id !== org.id)
+        .filter((o) => o.id !== org.id && o.data_sharing_opt_in)
         .map((o) => ({ grants: c.grants.listAll(o.id), tasks: c.tasks.listForOrg(o.id) }));
       res.json(comparePeers(current, peers));
     }),
   );
+
+  // JSON 404 for unknown /api routes.
+  api.use((_req: Request, res: Response) => {
+    res.status(404).json({ error: "not_found" });
+  });
+
+  // JSON error handler — never render HTML for API clients.
+  api.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof ValidationError) {
+      res.status(400).json({ error: "validation_error", message: err.message, issues: err.issues });
+      return;
+    }
+    if (err instanceof NotFoundError) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.error(err);
+    res.status(500).json({ error: "internal_error" });
+  });
 
   app.use("/api", api);
 }

@@ -5,11 +5,14 @@ import { formatHelpers } from "./web/format.js";
 import { registerWebRoutes } from "./routes/webRoutes.js";
 import { registerApiRoutes } from "./routes/apiRoutes.js";
 import { deriveAlerts } from "./services/alertService.js";
+import { entitlementsFor } from "./domain/plans.js";
 import {
   CLASSIFICATIONS,
   FUNDING_SOURCES,
   GRANT_STATUSES,
+  PLANS,
   RISK_TIERS,
+  SUBSCRIPTION_STATUSES,
   TASK_TYPES,
 } from "./domain/constants.js";
 
@@ -35,6 +38,8 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
     CLASSIFICATIONS,
     RISK_TIERS,
     TASK_TYPES,
+    PLANS,
+    SUBSCRIPTION_STATUSES,
   };
 
   app.use(express.static(config.publicDir));
@@ -62,6 +67,7 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
     res.locals.actor = "Pilot Admin";
     res.locals.path = req.path;
     res.locals.query = req.query;
+    res.locals.entitlements = org ? entitlementsFor(org) : null;
     if (org) {
       const grants = container.grants.listAll(org.id);
       const tasks = container.tasks.listForOrg(org.id);

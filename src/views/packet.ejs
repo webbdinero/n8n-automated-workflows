@@ -23,6 +23,7 @@
       </div>
       <div class="right">
         <span class="badge <%= tierClass(packet.risk.tier) %>">Risk <%= packet.risk.score %>/100 · <%= humanize(packet.risk.tier) %></span>
+        <% if (packet.premium) { %><span class="badge tier-low">Premium</span><% } %>
         <div class="small muted" style="margin-top:6px;">As of <%= fmtDate(packet.as_of) %></div>
       </div>
     </div>
@@ -90,6 +91,24 @@
     </div>
     <% } %>
   </section>
+
+  <% if (packet.premium && packet.benchmark) { %>
+    <section class="card" style="margin-bottom:16px;">
+      <h2>Peer benchmark <span class="small muted">(anonymized · <%= packet.benchmark.peerOrgCount %> peer org(s))</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th class="num">This grantee</th><th class="num">Peer pool</th></tr></thead>
+          <tbody>
+            <tr><td>Burn rate</td><td class="num"><%= fmtPct(packet.benchmark.org.burnRatePct) %></td><td class="num"><%= fmtPct(packet.benchmark.peer.burnRatePct) %></td></tr>
+            <tr><td>On-time reporting rate</td><td class="num"><%= fmtPct(packet.benchmark.org.onTimeReportPct) %></td><td class="num"><%= fmtPct(packet.benchmark.peer.onTimeReportPct) %></td></tr>
+            <tr><td>Active grants at risk</td><td class="num"><%= fmtPct(packet.benchmark.org.atRiskPct) %></td><td class="num"><%= fmtPct(packet.benchmark.peer.atRiskPct) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% } else if (!packet.premium) { %>
+    <div class="banner info no-print">Upgrade to a premium plan to include an anonymized peer-benchmark section in this packet.</div>
+  <% } %>
 
   <section class="card" style="margin-bottom:16px;">
     <h2>Audit trail</h2>

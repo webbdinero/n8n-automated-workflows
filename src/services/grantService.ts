@@ -249,6 +249,9 @@ export class GrantService {
   ): TaskRecord {
     const task = this.tasks.findById(taskId);
     if (!task) throw new NotFoundError(`Task ${taskId} not found`);
+    // Idempotent: completing an already-completed task is a no-op (guards
+    // against double-submits corrupting turnaround/outcome).
+    if (task.status === "completed") return task;
     const completedAt = nowIso();
     const completedDate = todayIso(new Date(completedAt));
     const outcome: TaskOutcome =

@@ -97,6 +97,25 @@ export const ORG_TYPES = [
 
 export const RISK_TIERS = ["low", "medium", "high", "critical"] as const;
 
+/** Subscription plans — the monetization tier attached to each organization. */
+export const PLANS = ["trial", "pilot", "standard", "enterprise"] as const;
+
+export const SUBSCRIPTION_STATUSES = [
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+] as const;
+
+/** Metered, billing-relevant actions recorded in usage_events. */
+export const USAGE_KINDS = [
+  "packet_generated",
+  "export_csv",
+  "export_json",
+  "grant_created",
+  "import",
+] as const;
+
 export type FundingSource = (typeof FUNDING_SOURCES)[number];
 export type GrantStatus = (typeof GRANT_STATUSES)[number];
 export type Classification = (typeof CLASSIFICATIONS)[number];
@@ -107,3 +126,6 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export type EventSource = (typeof EVENT_SOURCES)[number];
 export type OrgType = (typeof ORG_TYPES)[number];
 export type RiskTier = (typeof RISK_TIERS)[number];
+export type Plan = (typeof PLANS)[number];
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+export type UsageKind = (typeof USAGE_KINDS)[number];

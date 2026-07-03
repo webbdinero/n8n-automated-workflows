@@ -106,4 +106,18 @@ describe("IngestService", () => {
     const res = c.ingestService.ingestJson(org.id, json, { actor: "t", source: "json" });
     expect(res.created).toBe(1);
   });
+
+  it("stops at the plan grant cap and flags the overflow", () => {
+    const { c, org } = newCtx();
+    const csv = [
+      "grant_number,title,funding_source,award_amount,award_date,expenditure_deadline",
+      "CAP-1,One,STATE,1000,2023-01-01,2026-12-31",
+      "CAP-2,Two,STATE,1000,2023-01-01,2026-12-31",
+      "CAP-3,Three,STATE,1000,2023-01-01,2026-12-31",
+    ].join("\n");
+    const res = c.ingestService.ingestCsv(org.id, csv, { actor: "t", source: "csv" }, 2);
+    expect(res.created).toBe(2);
+    expect(res.failed).toBe(1);
+    expect(res.errors[0]?.message).toContain("limit");
+  });
 });
