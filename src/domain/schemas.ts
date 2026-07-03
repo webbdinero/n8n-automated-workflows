@@ -250,6 +250,22 @@ export const usageEventSchema = z.object({
 export type UsageEvent = z.infer<typeof usageEventSchema>;
 
 /* -------------------------------------------------------------------------- */
+/* Subscription event (append-only audit of plan/status changes)               */
+/* -------------------------------------------------------------------------- */
+
+export const subscriptionEventSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  at: z.string(),
+  actor: z.string(),
+  field: z.string(),
+  old_value: z.string().nullable(),
+  new_value: z.string().nullable(),
+  reason: z.string().nullable(),
+});
+export type SubscriptionEvent = z.infer<typeof subscriptionEventSchema>;
+
+/* -------------------------------------------------------------------------- */
 /* Partial update payload (from the detail page / API)                        */
 /* -------------------------------------------------------------------------- */
 

@@ -122,6 +122,21 @@ CREATE TABLE IF NOT EXISTS usage_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_org ON usage_events(org_id, at);
+
+-- Append-only audit log of subscription/plan changes. Billing-sensitive, so
+-- who/when/old->new/reason is recorded and never mutated.
+CREATE TABLE IF NOT EXISTS subscription_events (
+  id         TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL REFERENCES organizations(id),
+  at         TEXT NOT NULL,
+  actor      TEXT NOT NULL,
+  field      TEXT NOT NULL,
+  old_value  TEXT,
+  new_value  TEXT,
+  reason     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sub_events_org ON subscription_events(org_id, at);
 `;
 
 /**

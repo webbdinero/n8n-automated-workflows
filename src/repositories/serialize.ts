@@ -4,6 +4,7 @@ import type {
   GrantEvent,
   Organization,
   UsageEvent,
+  SubscriptionEvent,
 } from "../domain/schemas.js";
 import type {
   Classification,
@@ -57,6 +58,19 @@ export function rowToUsageEvent(r: Row): UsageEvent {
     quantity: num(r.quantity),
     ref: nstr(r.ref),
     meta: nstr(r.meta),
+  };
+}
+
+export function rowToSubscriptionEvent(r: Row): SubscriptionEvent {
+  return {
+    id: str(r.id),
+    org_id: str(r.org_id),
+    at: str(r.at),
+    actor: str(r.actor),
+    field: str(r.field),
+    old_value: nstr(r.old_value),
+    new_value: nstr(r.new_value),
+    reason: nstr(r.reason),
   };
 }
 

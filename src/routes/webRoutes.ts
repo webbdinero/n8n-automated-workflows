@@ -11,7 +11,12 @@ import { deriveAlerts } from "../services/alertService.js";
 import { scoreGrant } from "../services/scoring.js";
 import { comparePeers } from "../services/benchmarkService.js";
 import { DuplicateGrantError, NotFoundError, ValidationError } from "../services/errors.js";
-import { TASK_OUTCOMES, type Plan } from "../domain/constants.js";
+import {
+  TASK_OUTCOMES,
+  PLANS,
+  SUBSCRIPTION_STATUSES,
+  type Plan,
+} from "../domain/constants.js";
 import {
   can,
   entitlementsFor,
@@ -400,6 +405,7 @@ export function registerWebRoutes(app: Express, c: Container): void {
         entitlements,
         planLabel: PLAN_LABELS[org.plan as Plan],
         usage: c.usage.countsByKind(org.id),
+        subscriptionHistory: c.subscriptionService.history(org.id, 25),
         benchmark,
         counts: {
           grants: current.grants.length,
@@ -424,13 +430,27 @@ export function registerWebRoutes(app: Express, c: Container): void {
     "/admin/subscription",
     wrap((req, res) => {
       const org = res.locals.org;
-      const changes: Record<string, unknown> = {};
-      if (typeof req.body.plan === "string") changes.plan = req.body.plan;
-      if (typeof req.body.subscription_status === "string") {
-        changes.subscription_status = req.body.subscription_status;
+      const change: {
+        plan?: (typeof PLANS)[number];
+        subscription_status?: (typeof SUBSCRIPTION_STATUSES)[number];
+        data_sharing_opt_in?: boolean;
+      } = {};
+      // Only accept valid enum values — a crafted POST cannot store garbage.
+      if ((PLANS as readonly string[]).includes(req.body.plan)) {
+        change.plan = req.body.plan;
       }
-      changes.data_sharing_opt_in = req.body.data_sharing_opt_in === "on";
-      c.orgs.updateSubscription(org.id, changes);
+      if ((SUBSCRIPTION_STATUSES as readonly string[]).includes(req.body.subscription_status)) {
+        change.subscription_status = req.body.subscription_status;
+      }
+      change.data_sharing_opt_in = req.body.data_sharing_opt_in === "on";
+      const reason =
+        typeof req.body.reason === "string" && req.body.reason.trim()
+          ? req.body.reason.trim()
+          : null;
+      c.subscriptionService.updateSubscription(org.id, change, {
+        actor: res.locals.actor,
+        reason,
+      });
       res.redirect("/admin?subscription=1");
     }),
   );
