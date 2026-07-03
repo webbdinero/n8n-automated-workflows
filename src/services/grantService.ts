@@ -15,7 +15,7 @@ import {
   type ScoringGrant,
   type ScoringTask,
 } from "./scoring.js";
-import { DuplicateGrantError, NotFoundError } from "./errors.js";
+import { DuplicateGrantError, NotFoundError, ValidationError } from "./errors.js";
 
 export interface ActorContext {
   actor: string;
@@ -50,6 +50,39 @@ function toScoringTasks(tasks: TaskRecord[]): ScoringTask[] {
 function displayValue(v: unknown): string {
   if (v == null || v === "") return "—";
   return String(v);
+}
+
+interface GrantInvariantFields {
+  award_amount: number;
+  obligated_amount: number;
+  expended_amount: number;
+  award_date: string;
+  expenditure_deadline: string;
+  obligation_deadline: string | null;
+}
+
+/**
+ * Enforce the same financial/date invariants the create schema enforces, but
+ * against an already-merged record (used by partial updates). Throws
+ * ValidationError so web routes can surface it inline and the API returns 400.
+ */
+function assertGrantInvariants(g: GrantInvariantFields): void {
+  const issues: Array<{ path: string; message: string }> = [];
+  if (g.expended_amount > g.award_amount) {
+    issues.push({ path: "expended_amount", message: "expended_amount cannot exceed award_amount" });
+  }
+  if (g.obligated_amount > g.award_amount) {
+    issues.push({ path: "obligated_amount", message: "obligated_amount cannot exceed award_amount" });
+  }
+  if (g.expenditure_deadline < g.award_date) {
+    issues.push({ path: "expenditure_deadline", message: "expenditure_deadline cannot be before award_date" });
+  }
+  if (g.obligation_deadline && g.obligation_deadline < g.award_date) {
+    issues.push({ path: "obligation_deadline", message: "obligation_deadline cannot be before award_date" });
+  }
+  if (issues.length > 0) {
+    throw new ValidationError(issues[0]!.message, issues);
+  }
 }
 
 /**
@@ -127,6 +160,22 @@ export class GrantService {
   ): GrantRecord {
     const current = this.grants.findById(id);
     if (!current) throw new NotFoundError(`Grant ${id} not found`);
+
+    // Re-validate cross-field invariants against the MERGED record. The edit
+    // form and API PATCH are partial updates that would otherwise bypass the
+    // create-time checks and let a grant end up with expended > award or a
+    // deadline before its award date — corrupting metrics and scoring.
+    assertGrantInvariants({
+      award_amount: update.award_amount ?? current.award_amount,
+      obligated_amount: update.obligated_amount ?? current.obligated_amount,
+      expended_amount: update.expended_amount ?? current.expended_amount,
+      award_date: update.award_date ?? current.award_date,
+      expenditure_deadline: update.expenditure_deadline ?? current.expenditure_deadline,
+      obligation_deadline:
+        update.obligation_deadline !== undefined
+          ? update.obligation_deadline
+          : current.obligation_deadline,
+    });
 
     const changes: Record<string, unknown> = {};
     const current2 = current as unknown as Record<string, unknown>;

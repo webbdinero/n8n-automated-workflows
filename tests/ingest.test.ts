@@ -31,6 +31,15 @@ describe("toCsv", () => {
     const out = toCsv([{ a: "x,y", b: 3 }], ["a", "b"]);
     expect(out).toBe('a,b\n"x,y",3');
   });
+
+  it("neutralizes formula-injection in text fields but not numbers", () => {
+    const out = toCsv([{ title: "=HYPERLINK(\"http://evil\")", amount: -5 }], ["title", "amount"]);
+    const row = out.split("\n")[1]!;
+    // Leading '=' is prefixed with an apostrophe (and the whole field quoted).
+    expect(row.startsWith("\"'=HYPERLINK")).toBe(true);
+    // Numeric values (even negative) are left intact.
+    expect(row.endsWith(",-5")).toBe(true);
+  });
 });
 
 describe("normalizeDate", () => {

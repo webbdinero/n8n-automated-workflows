@@ -108,11 +108,18 @@ n8n-automated-workflows/
 
 ---
 
-## 🔐 Your Credentials (Pre-Configured)
+## 🔐 Your Credentials
 
-### OpenAI API Key (Already Have):
+> ⚠️ **Security note:** An OpenAI API key was previously committed here in
+> plaintext. It has been **redacted**. Because it was exposed in git history,
+> **rotate/revoke that key immediately** in the OpenAI dashboard — redacting the
+> file does not invalidate a key that has already leaked. Never commit secrets;
+> keep them in `.env` (git-ignored) or a secrets manager.
+
+### OpenAI API Key:
 ```
-***REMOVED***
+# Store in .env as OPENAI_API_KEY — do NOT commit the real value.
+OPENAI_API_KEY=<your-openai-api-key>
 ```
 
 ### Google OAuth (You Need To Create):

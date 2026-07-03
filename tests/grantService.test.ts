@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { newCtx, grantInput } from "./support.js";
-import { DuplicateGrantError } from "../src/services/errors.js";
+import { DuplicateGrantError, ValidationError } from "../src/services/errors.js";
 
 describe("GrantService.createGrant", () => {
   it("persists the grant, computes a score, and writes a creation event", () => {
@@ -63,6 +63,33 @@ describe("GrantService.updateGrant", () => {
     c.grantService.updateGrant(g.id, { expended_amount: 0 }, { actor: "u", source: "manual" });
     const high = c.grants.findById(g.id)!.risk_score;
     expect(high).toBeGreaterThan(low);
+  });
+
+  it("re-validates invariants on partial update (expended cannot exceed award)", () => {
+    const { c, org } = newCtx();
+    const g = c.grantService.createGrant(
+      org.id,
+      grantInput({ award_amount: 1_000_000, expended_amount: 500_000 }),
+      { actor: "u", source: "manual" },
+    );
+    expect(() =>
+      c.grantService.updateGrant(g.id, { expended_amount: 2_000_000 }, { actor: "u", source: "manual" }),
+    ).toThrow(ValidationError);
+    // No partial write: the grant and audit trail are untouched by the rejected update.
+    expect(c.grants.findById(g.id)!.expended_amount).toBe(500_000);
+    expect(c.events.listForGrant(g.id)).toHaveLength(1); // only the creation event
+  });
+
+  it("rejects an update that puts the expenditure deadline before the award date", () => {
+    const { c, org } = newCtx();
+    const g = c.grantService.createGrant(
+      org.id,
+      grantInput({ award_date: "2024-01-01", expenditure_deadline: "2026-12-31" }),
+      { actor: "u", source: "manual" },
+    );
+    expect(() =>
+      c.grantService.updateGrant(g.id, { expenditure_deadline: "2023-01-01" }, { actor: "u", source: "manual" }),
+    ).toThrow(ValidationError);
   });
 });
 

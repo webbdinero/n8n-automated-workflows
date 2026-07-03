@@ -64,7 +64,14 @@ export function parseCsv(input: string): {
 }
 
 function escapeCsv(value: unknown): string {
-  const s = value == null ? "" : String(value);
+  let s = value == null ? "" : String(value);
+  // CSV formula-injection defense: a text field beginning with = + @ (or a
+  // control char) is executed as a formula when opened in Excel/Sheets. Prefix
+  // it with an apostrophe so it renders as text. Only applied to strings, so
+  // numeric columns (amounts, scores) are untouched.
+  if (typeof value === "string" && /^[=+@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

@@ -10,7 +10,7 @@ import { portfolioSummary } from "../services/metrics.js";
 import { deriveAlerts } from "../services/alertService.js";
 import { scoreGrant } from "../services/scoring.js";
 import { comparePeers } from "../services/benchmarkService.js";
-import { DuplicateGrantError, NotFoundError } from "../services/errors.js";
+import { DuplicateGrantError, NotFoundError, ValidationError } from "../services/errors.js";
 import { TASK_OUTCOMES, type Plan } from "../domain/constants.js";
 import {
   can,
@@ -236,10 +236,18 @@ export function registerWebRoutes(app: Express, c: Container): void {
         );
         return;
       }
-      c.grantService.updateGrant(id, parsed.data, {
-        actor: res.locals.actor,
-        source: "manual",
-      });
+      try {
+        c.grantService.updateGrant(id, parsed.data, {
+          actor: res.locals.actor,
+          source: "manual",
+        });
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          res.redirect(`/grants/${id}?error=${encodeURIComponent(err.message)}`);
+          return;
+        }
+        throw err;
+      }
       res.redirect(`/grants/${id}?saved=1`);
     }),
   );
