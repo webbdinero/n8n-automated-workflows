@@ -1,5 +1,35 @@
 # Security runbook — leaked OpenAI API key
 
+> **STATUS: EXECUTED (Option A) — 2026-07-03.** Key rotated by owner, then all
+> refs (including `main`) were rewritten with `git filter-repo` and
+> force-pushed. Post-push verification: zero commits and zero blobs in the
+> remote contain the key. Old→new commit SHAs:
+>
+> | Old (dead) | New | Commit |
+> | --- | --- | --- |
+> | `417bcfc` | `755cdaa` | Initial commit |
+> | `78f0003` | `8954cb0` | Deployment package doc (was `main` tip; key redacted in-history) |
+> | `62fcaf5` | `8275ce9` | GrantGuard MVP |
+> | `f9467d0` | `ab818c8` | Pilot hardening (plans/metering) |
+> | `e66f7c8` | `1a5a906` | Update validation / CSV safety / redaction |
+> | `f062365` | `affa99a` | Subscription audit log |
+> | `8a063d9` | `affd741` | This runbook (branch tip) |
+>
+> All clones made before 2026-07-03 are stale and must be re-cloned (see
+> checklist below). PR #1 re-anchored automatically (open, same diff).
+> Remaining follow-ups: GitHub Support cache purge; enable secret scanning +
+> push protection.
+
+## Re-clone checklist (for every collaborator / machine)
+
+1. `mv n8n-automated-workflows n8n-automated-workflows.old` (or delete it) —
+   do **not** pull/rebase an old clone; a stale push can resurrect the secret.
+2. `git clone https://github.com/webbdinero/n8n-automated-workflows.git`
+3. `cd n8n-automated-workflows && npm install && npm run seed && npm test`
+4. Re-create any local-only branches by cherry-picking onto the new history
+   (`git -C ../n8n-automated-workflows.old format-patch` → `git am`).
+5. Copy over your local `.env` (never committed). Delete the old clone.
+
 ## Incident summary
 
 - **What leaked:** an OpenAI API key (`sk-proj-XOEa…`, redacted) committed in
