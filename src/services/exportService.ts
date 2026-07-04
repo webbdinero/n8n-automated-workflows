@@ -2,11 +2,15 @@ import type { GrantRepository } from "../repositories/grantRepository.js";
 import type { TaskRepository } from "../repositories/taskRepository.js";
 import type { EventRepository } from "../repositories/eventRepository.js";
 import type { OrganizationRepository } from "../repositories/organizationRepository.js";
+import type { EvidenceRepository } from "../repositories/evidenceRepository.js";
+import type { AnomalyRepository } from "../repositories/anomalyRepository.js";
 import type {
   GrantRecord,
   Organization,
   TaskRecord,
   GrantEvent,
+  EvidenceItem,
+  AnomalyEvent,
 } from "../domain/schemas.js";
 import { NotFoundError } from "./errors.js";
 import { scoreGrant, type RiskResult } from "./scoring.js";
@@ -39,6 +43,24 @@ export interface PacketOptions {
   premium?: boolean;
 }
 
+export interface CaseFile {
+  generated_at: string;
+  as_of: string;
+  org: Organization;
+  grant: GrantRecord;
+  risk: RiskResult;
+  financials: {
+    unspent: number;
+    unobligated: number;
+    pctSpent: number;
+    pctObligated: number;
+  };
+  events: GrantEvent[];
+  tasks: TaskRecord[];
+  evidence: EvidenceItem[];
+  anomalies: AnomalyEvent[];
+}
+
 /**
  * Report / export generation. Produces the audit-ready "compliance packet" per
  * grant (a printable, self-contained record) plus portfolio-level CSV and JSON
@@ -51,7 +73,63 @@ export class ExportService {
     private readonly tasks: TaskRepository,
     private readonly events: EventRepository,
     private readonly orgs: OrganizationRepository,
+    private readonly evidence?: EvidenceRepository,
+    private readonly anomalies?: AnomalyRepository,
   ) {}
+
+  private computeRisk(grant: GrantRecord, tasks: TaskRecord[], asOf: string): RiskResult {
+    return scoreGrant(
+      {
+        award_amount: grant.award_amount,
+        obligated_amount: grant.obligated_amount,
+        expended_amount: grant.expended_amount,
+        award_date: grant.award_date,
+        obligation_deadline: grant.obligation_deadline,
+        expenditure_deadline: grant.expenditure_deadline,
+        period_of_performance_end: grant.period_of_performance_end,
+        status: grant.status,
+        assigned_to: grant.assigned_to,
+        department: grant.department,
+        category: grant.category,
+      },
+      tasks.map((t) => ({ status: t.status, due_date: t.due_date, outcome: t.outcome })),
+      asOf,
+    );
+  }
+
+  private financials(grant: GrantRecord) {
+    return {
+      unspent: Math.max(0, grant.award_amount - grant.expended_amount),
+      unobligated: Math.max(0, grant.award_amount - grant.obligated_amount),
+      pctSpent: grant.award_amount > 0 ? grant.expended_amount / grant.award_amount : 0,
+      pctObligated: grant.award_amount > 0 ? grant.obligated_amount / grant.award_amount : 0,
+    };
+  }
+
+  /**
+   * Assemble an audit-ready case file: grant snapshot, full change history,
+   * evidence chain of custody, and open/resolved anomalies. Rendered to a
+   * standalone HTML for inclusion in an audit binder.
+   */
+  buildCaseFile(grantId: string, asOf: string = todayIso()): CaseFile {
+    const grant = this.grants.findById(grantId);
+    if (!grant) throw new NotFoundError(`Grant ${grantId} not found`);
+    const org = this.orgs.findById(grant.org_id);
+    if (!org) throw new NotFoundError("Organization not found");
+    const tasks = this.tasks.listForGrant(grantId);
+    return {
+      generated_at: nowIso(),
+      as_of: asOf,
+      org,
+      grant,
+      risk: this.computeRisk(grant, tasks, asOf),
+      financials: this.financials(grant),
+      events: this.events.listForGrant(grantId),
+      tasks,
+      evidence: this.evidence ? this.evidence.listForGrant(grantId) : [],
+      anomalies: this.anomalies ? this.anomalies.listForGrant(grantId) : [],
+    };
+  }
 
   buildPacket(grantId: string, opts: PacketOptions = {}): CompliancePacket {
     const asOf = opts.asOf ?? todayIso();

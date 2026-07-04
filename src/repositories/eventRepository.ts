@@ -69,6 +69,44 @@ export class EventRepository {
       .map((r) => rowToEvent(r as Record<string, unknown>));
   }
 
+  /** Change-history query with optional filters (actor, event type, date range). */
+  listForGrantFiltered(
+    grantId: string,
+    filters: { actor?: string; eventType?: string; from?: string; to?: string } = {},
+  ): GrantEvent[] {
+    const where: string[] = ["grant_id = ?"];
+    const params: (string | number)[] = [grantId];
+    if (filters.actor) {
+      where.push("actor = ?");
+      params.push(filters.actor);
+    }
+    if (filters.eventType) {
+      where.push("event_type = ?");
+      params.push(filters.eventType);
+    }
+    if (filters.from) {
+      where.push("at >= ?");
+      params.push(filters.from);
+    }
+    if (filters.to) {
+      // inclusive end-of-day
+      where.push("at <= ?");
+      params.push(`${filters.to}T23:59:59.999Z`);
+    }
+    return this.db
+      .prepare(`SELECT * FROM grant_events WHERE ${where.join(" AND ")} ORDER BY at DESC, rowid DESC`)
+      .all(...params)
+      .map((r) => rowToEvent(r as Record<string, unknown>));
+  }
+
+  /** Distinct actors that have touched a grant — for the history filter dropdown. */
+  distinctActorsForGrant(grantId: string): string[] {
+    return this.db
+      .prepare(`SELECT DISTINCT actor FROM grant_events WHERE grant_id = ? ORDER BY actor`)
+      .all(grantId)
+      .map((r) => String((r as Record<string, unknown>).actor));
+  }
+
   recent(orgId: string, limit = 20): GrantEvent[] {
     return this.db
       .prepare(

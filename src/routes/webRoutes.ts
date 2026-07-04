@@ -4,8 +4,10 @@ import {
   grantInputSchema,
   grantUpdateSchema,
   taskInputSchema,
+  evidenceInputSchema,
 } from "../domain/schemas.js";
 import type { GrantRecord } from "../domain/schemas.js";
+import { ANOMALY_STATUSES, type AnomalyStatus } from "../domain/constants.js";
 import { portfolioSummary } from "../services/metrics.js";
 import { deriveAlerts } from "../services/alertService.js";
 import { scoreGrant } from "../services/scoring.js";
@@ -208,15 +210,38 @@ export function registerWebRoutes(app: Express, c: Container): void {
         tasks.map((t) => ({ status: t.status, due_date: t.due_date, outcome: t.outcome })),
         todayIso(),
       );
+      // Change-history filters (Feature 2).
+      const historyFilters = {
+        actor: (req.query.hist_actor as string) || "",
+        eventType: (req.query.hist_type as string) || "",
+        from: (req.query.hist_from as string) || "",
+        to: (req.query.hist_to as string) || "",
+      };
+      const history = c.events.listForGrantFiltered(grant.id, {
+        actor: historyFilters.actor || undefined,
+        eventType: historyFilters.eventType || undefined,
+        from: historyFilters.from || undefined,
+        to: historyFilters.to || undefined,
+      });
+      const actorRoles: Record<string, string> = {};
+      for (const u of c.users.listForOrg(grant.org_id)) actorRoles[u.email] = u.role;
+
       res.render("grant_detail", {
         title: grant.grant_number,
         grant,
         tasks,
         events,
+        history,
+        historyFilters,
+        historyActors: c.events.distinctActorsForGrant(grant.id),
+        actorRoles,
+        evidence: c.evidenceService.listForGrant(grant.id),
+        anomalies: c.anomalyService.openForGrant(grant.id),
         risk,
         taskOutcomes: TASK_OUTCOMES,
         saved: req.query.saved === "1",
         created: req.query.created === "1",
+        evidenceAdded: req.query.evidence === "1",
         errorMsg: (req.query.error as string) || null,
       });
     }),
@@ -254,7 +279,76 @@ export function registerWebRoutes(app: Express, c: Container): void {
         }
         throw err;
       }
+      // Re-evaluate anomaly rules after the change (never blocks the update).
+      c.anomalyService.recomputeForGrant(id);
       res.redirect(`/grants/${id}?saved=1`);
+    }),
+  );
+
+  router.post(
+    "/grants/:id/evidence",
+    wrap((req, res) => {
+      const id = req.params.id!;
+      const grant = c.grants.findById(id);
+      if (!grant || grant.org_id !== res.locals.org.id) {
+        res.status(404).render("error", { title: "Not found", message: "Grant not found" });
+        return;
+      }
+      const parsed = evidenceInputSchema.safeParse({
+        type: req.body.type,
+        filename: req.body.filename,
+        url: req.body.url,
+        note: req.body.note,
+      });
+      if (!parsed.success) {
+        const first = parsed.error.issues[0];
+        res.redirect(
+          `/grants/${id}?error=${encodeURIComponent(
+            first ? `${first.path.join(".")}: ${first.message}` : "Invalid evidence",
+          )}#evidence`,
+        );
+        return;
+      }
+      c.evidenceService.addEvidence(grant.org_id, id, parsed.data, {
+        email: res.locals.actor,
+        userId: res.locals.currentUser ? res.locals.currentUser.id : null,
+      });
+      // A pile of documentation notes may itself be an anomaly.
+      c.anomalyService.recomputeForGrant(id);
+      res.redirect(`/grants/${id}?evidence=1#evidence`);
+    }),
+  );
+
+  router.get(
+    "/grants/:id/casefile",
+    wrap((req, res) => {
+      const grant = c.grants.findById(req.params.id!);
+      if (!grant || grant.org_id !== res.locals.org.id) {
+        res.status(404).render("error", { title: "Not found", message: "Grant not found" });
+        return;
+      }
+      const caseFile = c.exportService.buildCaseFile(grant.id);
+      c.usage.record({
+        org_id: grant.org_id,
+        kind: "packet_generated",
+        actor: res.locals.actor,
+        ref: grant.id,
+        meta: "casefile",
+      });
+      if (req.query.download === "1") {
+        // Render to a string and serve as a standalone downloadable HTML file.
+        res.render("casefile", { title: `Case File — ${grant.grant_number}`, caseFile }, (err, html) => {
+          if (err) throw err;
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="casefile-${grant.grant_number}-${todayIso()}.html"`,
+          );
+          res.send(html);
+        });
+        return;
+      }
+      res.render("casefile", { title: `Case File — ${grant.grant_number}`, caseFile });
     }),
   );
 
@@ -604,6 +698,57 @@ export function registerWebRoutes(app: Express, c: Container): void {
         `attachment; filename="grantguard-portfolio-${todayIso()}.json"`,
       );
       res.send(JSON.stringify(data, null, 2));
+    }),
+  );
+
+  /* -------------------------------- Anomalies ----------------------------- */
+  router.get(
+    "/anomalies",
+    wrap((_req, res) => {
+      const org = res.locals.org;
+      const open = c.anomalyService.listOpen(org.id);
+      // Attach grant number/title for the queue table.
+      const rows = open.map((a) => {
+        const g = c.grants.findById(a.grant_id);
+        return { anomaly: a, grant_number: g?.grant_number ?? "—", grant_title: g?.title ?? "" };
+      });
+      res.render("anomalies", {
+        title: "Anomalies",
+        rows,
+        anomalyStatuses: ANOMALY_STATUSES,
+      });
+    }),
+  );
+
+  router.post(
+    "/anomalies/:id/status",
+    requireAdmin(),
+    wrap((req, res) => {
+      const status = req.body.status as string;
+      if (!(ANOMALY_STATUSES as readonly string[]).includes(status)) {
+        res.redirect("/anomalies");
+        return;
+      }
+      const anomaly = c.anomalies.findById(req.params.id!);
+      if (!anomaly || anomaly.org_id !== res.locals.org.id) {
+        res.status(404).render("error", { title: "Not found", message: "Anomaly not found" });
+        return;
+      }
+      c.anomalyService.updateStatus(req.params.id!, status as AnomalyStatus, {
+        actorEmail: res.locals.actor,
+        actorUserId: res.locals.currentUser ? res.locals.currentUser.id : null,
+        note: typeof req.body.note === "string" && req.body.note.trim() ? req.body.note.trim() : null,
+      });
+      res.redirect("/anomalies");
+    }),
+  );
+
+  router.post(
+    "/admin/recompute-anomalies",
+    requireAdmin(),
+    wrap((_req, res) => {
+      const created = c.anomalyService.recomputeAll(res.locals.org.id);
+      res.redirect(`/anomalies?recomputed=${created}`);
     }),
   );
 

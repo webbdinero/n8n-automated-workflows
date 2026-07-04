@@ -82,6 +82,22 @@ export const EVENT_TYPES = [
   "task_created",
   "task_completed",
   "scored",
+  "evidence_added",
+  "anomaly_flagged",
+  "anomaly_reviewed",
+] as const;
+
+/** Evidence item kinds for case files / audit binders. */
+export const EVIDENCE_TYPES = ["attachment", "link", "note"] as const;
+export const EVIDENCE_STATUSES = ["active", "superseded"] as const;
+
+/** Anomaly (oversight) severities, workflow statuses, and rule identifiers. */
+export const ANOMALY_SEVERITIES = ["low", "medium", "high"] as const;
+export const ANOMALY_STATUSES = ["open", "under_review", "cleared"] as const;
+export const ANOMALY_RULES = [
+  "large_last_minute_change",
+  "frequent_edits",
+  "repeated_documentation_notes",
 ] as const;
 
 export const EVENT_SOURCES = ["manual", "csv", "json", "api", "system"] as const;
@@ -133,3 +149,8 @@ export type Plan = (typeof PLANS)[number];
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type UsageKind = (typeof USAGE_KINDS)[number];
 export type UserRole = (typeof USER_ROLES)[number];
+export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
+export type EvidenceStatus = (typeof EVIDENCE_STATUSES)[number];
+export type AnomalySeverity = (typeof ANOMALY_SEVERITIES)[number];
+export type AnomalyStatus = (typeof ANOMALY_STATUSES)[number];
+export type AnomalyRule = (typeof ANOMALY_RULES)[number];

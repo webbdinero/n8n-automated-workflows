@@ -18,6 +18,9 @@ import {
   RISK_TIERS,
   SUBSCRIPTION_STATUSES,
   TASK_TYPES,
+  EVENT_TYPES,
+  EVIDENCE_TYPES,
+  ANOMALY_STATUSES,
 } from "./domain/constants.js";
 
 export interface AppOptions {
@@ -44,6 +47,9 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
     TASK_TYPES,
     PLANS,
     SUBSCRIPTION_STATUSES,
+    EVENT_TYPES,
+    EVIDENCE_TYPES,
+    ANOMALY_STATUSES,
   };
 
   app.use(express.static(config.publicDir));

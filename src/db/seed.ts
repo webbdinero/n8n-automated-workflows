@@ -37,6 +37,20 @@ if (pilot) {
   }
   // eslint-disable-next-line no-console
   console.log(`  API token (x-api-key / Bearer): ${token}`);
+
+  // Demo oversight scenario: attach evidence to a flagged grant and run the
+  // anomaly rules so the Anomalies queue / Evidence chain are non-empty.
+  const flagged = container.grants.findByNumber(pilot.id, "SLFRF-2023-011");
+  if (flagged && container.evidence.listForGrant(flagged.id).length === 0) {
+    const actor = { email: `admin@${pilot.slug}.gov` };
+    container.evidenceService.addEvidence(pilot.id, flagged.id, { type: "note", note: "Subrecipient invoice unclear — requested itemization." }, actor);
+    container.evidenceService.addEvidence(pilot.id, flagged.id, { type: "note", note: "Missing timesheet backup for premium pay disbursement." }, actor);
+    container.evidenceService.addEvidence(pilot.id, flagged.id, { type: "note", note: "Second follow-up on documentation still outstanding." }, actor);
+    container.evidenceService.addEvidence(pilot.id, flagged.id, { type: "link", url: "https://records.demo-borough.gov/slfrf-2023-011/audit-workpaper" }, actor);
+    const created = container.anomalyService.recomputeAll(pilot.id);
+    // eslint-disable-next-line no-console
+    console.log(`  Seeded evidence + ran anomaly rules (${created} anomaly event(s) flagged).`);
+  }
 }
 // eslint-disable-next-line no-console
 console.log("\nDone. Start the app with: npm start\n");

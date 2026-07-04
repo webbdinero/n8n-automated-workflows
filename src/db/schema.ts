@@ -184,6 +184,48 @@ CREATE TABLE IF NOT EXISTS security_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_security_events_at ON security_events(at);
+
+-- Evidence items attached to a grant for case files / audit binders. Append-
+-- only: items are never hard-deleted; supersede via status + superseded_by so
+-- the full chain of custody is preserved.
+CREATE TABLE IF NOT EXISTS evidence_items (
+  id                 TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL REFERENCES organizations(id),
+  grant_id           TEXT NOT NULL REFERENCES grants(id) ON DELETE CASCADE,
+  type               TEXT NOT NULL,          -- attachment | link | note
+  filename           TEXT,
+  url                TEXT,
+  note               TEXT,
+  content_hash       TEXT,
+  status             TEXT NOT NULL DEFAULT 'active',  -- active | superseded
+  superseded_by      TEXT,
+  created_at         TEXT NOT NULL,
+  created_by_user_id TEXT,
+  created_by_email   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_grant ON evidence_items(grant_id, created_at);
+
+-- Rule-based oversight anomalies for grants. Transparent + explainable: each
+-- row records the rule, severity, and a human-readable explanation. Workflow:
+-- open -> under_review -> cleared. Never auto-blocks changes.
+CREATE TABLE IF NOT EXISTS anomaly_events (
+  id                  TEXT PRIMARY KEY,
+  org_id              TEXT NOT NULL REFERENCES organizations(id),
+  grant_id            TEXT NOT NULL REFERENCES grants(id) ON DELETE CASCADE,
+  rule_name           TEXT NOT NULL,
+  severity            TEXT NOT NULL,          -- low | medium | high
+  details             TEXT,                   -- explanation (why it fired)
+  status              TEXT NOT NULL DEFAULT 'open',
+  created_at          TEXT NOT NULL,
+  created_by          TEXT NOT NULL DEFAULT 'system',
+  resolved_by_user_id TEXT,
+  resolved_at         TEXT,
+  resolution_note     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_anomaly_org_status ON anomaly_events(org_id, status);
+CREATE INDEX IF NOT EXISTS idx_anomaly_grant ON anomaly_events(grant_id, created_at);
 `;
 
 /**

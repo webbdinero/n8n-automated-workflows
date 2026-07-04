@@ -9,11 +9,15 @@ import { SubscriptionEventRepository } from "./repositories/subscriptionEventRep
 import { UserRepository } from "./repositories/userRepository.js";
 import { UserEventRepository } from "./repositories/userEventRepository.js";
 import { SecurityEventRepository } from "./repositories/securityEventRepository.js";
+import { EvidenceRepository } from "./repositories/evidenceRepository.js";
+import { AnomalyRepository } from "./repositories/anomalyRepository.js";
 import { GrantService } from "./services/grantService.js";
 import { IngestService } from "./services/ingestService.js";
 import { ExportService } from "./services/exportService.js";
 import { SubscriptionService } from "./services/subscriptionService.js";
 import { UserAdminService } from "./services/userAdminService.js";
+import { EvidenceService } from "./services/evidenceService.js";
+import { AnomalyService } from "./services/anomalyService.js";
 import { LoginRateLimiter } from "./auth/loginRateLimiter.js";
 
 /**
@@ -30,12 +34,16 @@ export function createContainer(db: DatabaseSync = getDb()) {
   const users = new UserRepository(db);
   const userEvents = new UserEventRepository(db);
   const securityEvents = new SecurityEventRepository(db);
+  const evidence = new EvidenceRepository(db);
+  const anomalies = new AnomalyRepository(db);
 
   const grantService = new GrantService(grants, tasks, events);
   const ingestService = new IngestService(grantService);
-  const exportService = new ExportService(grants, tasks, events, orgs);
+  const exportService = new ExportService(grants, tasks, events, orgs, evidence, anomalies);
   const subscriptionService = new SubscriptionService(orgs, subscriptionEvents);
   const userAdminService = new UserAdminService(users, userEvents);
+  const evidenceService = new EvidenceService(evidence, events);
+  const anomalyService = new AnomalyService(anomalies, grants, events, evidence);
   const loginLimiter = new LoginRateLimiter();
 
   return {
@@ -49,11 +57,15 @@ export function createContainer(db: DatabaseSync = getDb()) {
     users,
     userEvents,
     securityEvents,
+    evidence,
+    anomalies,
     grantService,
     ingestService,
     exportService,
     subscriptionService,
     userAdminService,
+    evidenceService,
+    anomalyService,
     loginLimiter,
   };
 }

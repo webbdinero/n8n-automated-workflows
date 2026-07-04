@@ -103,7 +103,9 @@ to `.env` to override the port, DB path, or default org slug.
 | **Sign in** | `/login` | Session-based auth gates all web routes; roles are `admin` / `member`. |
 | **Dashboard** | `/` | KPIs (portfolio value, unspent, at-risk, expiring ≤90d, overdue reports), risk distribution, funding mix, top alerts, recent activity. |
 | **Grants** | `/grants` | Search + filters (status, funding, risk tier, classification, owner) + sorting. |
-| **Grant detail** | `/grants/:id` | Overview, inline edit + review, reporting obligations, live risk breakdown, full audit trail. |
+| **Grant detail** | `/grants/:id` | Overview, inline edit + review, reporting obligations, live risk breakdown, **Evidence**, filterable **Change History**, and open **Anomalies**. |
+| **Anomalies** | `/anomalies` | Investigator queue of open, rule-based anomaly flags; admins mark under-review / cleared (audited). |
+| **Case file** | `/grants/:id/casefile` | Standalone, audit-binder-ready HTML: grant snapshot + change history + evidence + anomalies (`?download=1` to save). |
 | **Add / import** | `/grants/new`, `/import` | Manual entry, or paste/upload CSV or JSON (columns auto-mapped, every row validated). |
 | **Alerts** | `/alerts` | Live-derived, severity-ranked (deadline pressure, obligation gaps, overdue reports). |
 | **Admin** | `/admin` | Org settings, recompute, exports, **peer benchmarks**, proprietary-data map. |
@@ -126,6 +128,25 @@ premium capabilities:
 Billing-relevant actions (packet generation, exports, imports) are recorded in
 `usage_events` as a **metering basis** for usage-based / premium-report pricing,
 and surfaced in Admin. Manage the plan at **Admin → Subscription** (`POST /admin/subscription`).
+
+### Oversight & investigation (Inspector General features)
+
+Built for municipal IGs, internal auditors, and oversight teams:
+
+- **Evidence & chain of custody** (`evidence_items`) — attach links/notes (and
+  filenames as attachment stubs; real file storage is out of scope for now) to a
+  grant. Append-only: items are superseded, never hard-deleted. Every add is
+  audited. Extensible to other entities by generalizing `grant_id`.
+- **Change History** — a filterable view over the existing append-only
+  `grant_events` (no parallel tracking system): filter by actor, event type, and
+  date range; shows actor role, field-level old→new, and summary.
+- **Anomalies** (`anomaly_events`) — transparent, deterministic, **config-driven**
+  rules (`src/services/anomalyRules.ts`): large last-minute change near a
+  deadline, frequent edits to a high-value grant, and repeated documentation
+  notes. Rules run on grant update and via an admin **Recompute**; they flag,
+  never block. Workflow: `open → under_review → cleared`, all audited.
+- **Case File export** — a standalone HTML packet (grant snapshot + change
+  history + evidence + anomalies) for an audit binder.
 
 ### Authentication
 

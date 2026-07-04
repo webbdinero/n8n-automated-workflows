@@ -8,6 +8,8 @@ import type {
   User,
   UserEvent,
   SecurityEvent,
+  EvidenceItem,
+  AnomalyEvent,
 } from "../domain/schemas.js";
 import type {
   Classification,
@@ -24,6 +26,10 @@ import type {
   TaskType,
   UsageKind,
   UserRole,
+  EvidenceType,
+  EvidenceStatus,
+  AnomalySeverity,
+  AnomalyStatus,
 } from "../domain/constants.js";
 
 /** A raw SQLite row is a bag of columns; we map it explicitly to typed records. */
@@ -77,6 +83,41 @@ export function rowToSecurityEvent(r: Row): SecurityEvent {
     org_id: nstr(r.org_id),
     actor: nstr(r.actor),
     detail: nstr(r.detail),
+  };
+}
+
+export function rowToEvidenceItem(r: Row): EvidenceItem {
+  return {
+    id: str(r.id),
+    org_id: str(r.org_id),
+    grant_id: str(r.grant_id),
+    type: str(r.type) as EvidenceType,
+    filename: nstr(r.filename),
+    url: nstr(r.url),
+    note: nstr(r.note),
+    content_hash: nstr(r.content_hash),
+    status: (str(r.status) || "active") as EvidenceStatus,
+    superseded_by: nstr(r.superseded_by),
+    created_at: str(r.created_at),
+    created_by_user_id: nstr(r.created_by_user_id),
+    created_by_email: nstr(r.created_by_email),
+  };
+}
+
+export function rowToAnomalyEvent(r: Row): AnomalyEvent {
+  return {
+    id: str(r.id),
+    org_id: str(r.org_id),
+    grant_id: str(r.grant_id),
+    rule_name: str(r.rule_name),
+    severity: str(r.severity) as AnomalySeverity,
+    details: nstr(r.details),
+    status: (str(r.status) || "open") as AnomalyStatus,
+    created_at: str(r.created_at),
+    created_by: str(r.created_by) || "system",
+    resolved_by_user_id: nstr(r.resolved_by_user_id),
+    resolved_at: nstr(r.resolved_at),
+    resolution_note: nstr(r.resolution_note),
   };
 }
 

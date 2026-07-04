@@ -14,6 +14,10 @@ import {
   TASK_TYPES,
   USAGE_KINDS,
   USER_ROLES,
+  EVIDENCE_TYPES,
+  EVIDENCE_STATUSES,
+  ANOMALY_SEVERITIES,
+  ANOMALY_STATUSES,
 } from "./constants.js";
 
 /* -------------------------------------------------------------------------- */
@@ -90,6 +94,68 @@ export const userSchema = z.object({
   deactivated_at: z.string().nullable(),
 });
 export type User = z.infer<typeof userSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Evidence item (case files / audit binders)                                  */
+/* -------------------------------------------------------------------------- */
+
+export const evidenceInputSchema = z
+  .object({
+    type: z.enum(EVIDENCE_TYPES),
+    filename: trimmed.optional().nullable(),
+    url: trimmed.optional().nullable(),
+    note: z.string().trim().optional().nullable(),
+    content_hash: trimmed.optional().nullable(),
+  })
+  .superRefine((e, ctx) => {
+    if (e.type === "link" && !e.url) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["url"], message: "A URL is required for a link" });
+    }
+    if (e.type === "attachment" && !e.filename) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["filename"], message: "A filename is required for an attachment" });
+    }
+    if (e.type === "note" && !e.note) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["note"], message: "Note text is required" });
+    }
+  });
+export type EvidenceInput = z.infer<typeof evidenceInputSchema>;
+
+export const evidenceItemSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  grant_id: z.string(),
+  type: z.enum(EVIDENCE_TYPES),
+  filename: z.string().nullable(),
+  url: z.string().nullable(),
+  note: z.string().nullable(),
+  content_hash: z.string().nullable(),
+  status: z.enum(EVIDENCE_STATUSES),
+  superseded_by: z.string().nullable(),
+  created_at: z.string(),
+  created_by_user_id: z.string().nullable(),
+  created_by_email: z.string().nullable(),
+});
+export type EvidenceItem = z.infer<typeof evidenceItemSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Anomaly event (rule-based oversight)                                        */
+/* -------------------------------------------------------------------------- */
+
+export const anomalyEventSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  grant_id: z.string(),
+  rule_name: z.string(),
+  severity: z.enum(ANOMALY_SEVERITIES),
+  details: z.string().nullable(),
+  status: z.enum(ANOMALY_STATUSES),
+  created_at: z.string(),
+  created_by: z.string(),
+  resolved_by_user_id: z.string().nullable(),
+  resolved_at: z.string().nullable(),
+  resolution_note: z.string().nullable(),
+});
+export type AnomalyEvent = z.infer<typeof anomalyEventSchema>;
 
 /** Append-only auth/security event (login, lockout, password change/reset). */
 export const securityEventSchema = z.object({
