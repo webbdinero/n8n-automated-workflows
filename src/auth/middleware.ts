@@ -44,6 +44,27 @@ export function requireWebAuth() {
   };
 }
 
+/**
+ * Force users flagged `must_change_password` (admin-created or reset accounts)
+ * to set a new password before using the app. They may still reach the change
+ * page, log out, and static assets; the token API is unaffected.
+ */
+export function requirePasswordChange() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = res.locals.currentUser;
+    if (!user || !user.must_change_password) return next();
+    if (
+      req.path === "/account/password" ||
+      req.path === "/logout" ||
+      req.path.startsWith("/api") ||
+      req.path === "/login"
+    ) {
+      return next();
+    }
+    return res.redirect("/account/password");
+  };
+}
+
 /** Require the current user to be an admin (billing-sensitive actions). */
 export function requireAdmin() {
   return (req: Request, res: Response, next: NextFunction) => {

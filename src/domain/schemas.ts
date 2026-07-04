@@ -84,11 +84,25 @@ export const userSchema = z.object({
   email: z.string(),
   name: z.string(),
   role: z.enum(USER_ROLES),
+  must_change_password: z.boolean(),
   created_at: z.string(),
   last_login_at: z.string().nullable(),
   deactivated_at: z.string().nullable(),
 });
 export type User = z.infer<typeof userSchema>;
+
+/** Append-only auth/security event (login, lockout, password change/reset). */
+export const securityEventSchema = z.object({
+  id: z.string(),
+  at: z.string(),
+  event: z.string(),
+  email: z.string().nullable(),
+  ip: z.string().nullable(),
+  org_id: z.string().nullable(),
+  actor: z.string().nullable(),
+  detail: z.string().nullable(),
+});
+export type SecurityEvent = z.infer<typeof securityEventSchema>;
 
 /** Append-only audit of user-management actions. */
 export const userEventSchema = z.object({

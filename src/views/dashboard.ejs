@@ -1,4 +1,7 @@
 <%- include('partials/header') %>
+<% if (locals.query && query.password_changed !== undefined) { %>
+  <div class="banner ok">Your password has been updated.</div>
+<% } %>
 <div class="page-head">
   <div>
     <h1>Portfolio Overview</h1>

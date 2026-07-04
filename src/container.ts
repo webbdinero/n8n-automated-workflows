@@ -8,6 +8,7 @@ import { UsageRepository } from "./repositories/usageRepository.js";
 import { SubscriptionEventRepository } from "./repositories/subscriptionEventRepository.js";
 import { UserRepository } from "./repositories/userRepository.js";
 import { UserEventRepository } from "./repositories/userEventRepository.js";
+import { SecurityEventRepository } from "./repositories/securityEventRepository.js";
 import { GrantService } from "./services/grantService.js";
 import { IngestService } from "./services/ingestService.js";
 import { ExportService } from "./services/exportService.js";
@@ -28,6 +29,7 @@ export function createContainer(db: DatabaseSync = getDb()) {
   const subscriptionEvents = new SubscriptionEventRepository(db);
   const users = new UserRepository(db);
   const userEvents = new UserEventRepository(db);
+  const securityEvents = new SecurityEventRepository(db);
 
   const grantService = new GrantService(grants, tasks, events);
   const ingestService = new IngestService(grantService);
@@ -46,6 +48,7 @@ export function createContainer(db: DatabaseSync = getDb()) {
     subscriptionEvents,
     users,
     userEvents,
+    securityEvents,
     grantService,
     ingestService,
     exportService,

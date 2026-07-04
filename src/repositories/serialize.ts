@@ -7,6 +7,7 @@ import type {
   SubscriptionEvent,
   User,
   UserEvent,
+  SecurityEvent,
 } from "../domain/schemas.js";
 import type {
   Classification,
@@ -59,9 +60,23 @@ export function rowToUser(r: Row): User {
     email: str(r.email),
     name: str(r.name),
     role: str(r.role) as UserRole,
+    must_change_password: Number(r.must_change_password ?? 0) === 1,
     created_at: str(r.created_at),
     last_login_at: nstr(r.last_login_at),
     deactivated_at: nstr(r.deactivated_at),
+  };
+}
+
+export function rowToSecurityEvent(r: Row): SecurityEvent {
+  return {
+    id: str(r.id),
+    at: str(r.at),
+    event: str(r.event),
+    email: nstr(r.email),
+    ip: nstr(r.ip),
+    org_id: nstr(r.org_id),
+    actor: nstr(r.actor),
+    detail: nstr(r.detail),
   };
 }
 

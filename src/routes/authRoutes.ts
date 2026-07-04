@@ -33,10 +33,13 @@ export function registerAuthRoutes(app: Express, c: Container): void {
     const next = safeNext(req.body.next);
     const key = `${email.trim().toLowerCase()}|${req.ip}`;
 
+    const ip = req.ip ?? null;
+
     // Brute-force protection: lock the key out after too many failures.
     const gate = c.loginLimiter.status(key);
     if (gate.locked) {
       const mins = Math.ceil(gate.retryAfterMs / 60000);
+      c.securityEvents.record({ event: "login_lockout", email, ip, detail: "locked" });
       res.status(429).render("login", {
         title: "Sign in",
         error: `Too many failed attempts. Try again in about ${mins} minute(s).`,
@@ -49,6 +52,12 @@ export function registerAuthRoutes(app: Express, c: Container): void {
     const user = c.users.authenticate(email, password);
     if (!user) {
       const after = c.loginLimiter.recordFailure(key);
+      c.securityEvents.record({
+        event: after.locked ? "login_lockout" : "login_failure",
+        email,
+        ip,
+        detail: after.locked ? "lockout triggered" : "invalid credentials",
+      });
       res.status(after.locked ? 429 : 401).render("login", {
         title: "Sign in",
         error: after.locked
@@ -61,6 +70,7 @@ export function registerAuthRoutes(app: Express, c: Container): void {
     }
     c.loginLimiter.recordSuccess(key);
     c.users.recordLogin(user.id);
+    c.securityEvents.record({ event: "login_success", email: user.email, ip, org_id: user.org_id, actor: user.email });
     const token = signSession({ uid: user.id, exp: sessionExpiry(14) }, config.sessionSecret);
     res.cookie(SESSION_COOKIE, token, {
       httpOnly: true,

@@ -12,6 +12,8 @@ export interface NewUser {
   name: string;
   role?: UserRole;
   password: string;
+  /** Force a password change on first login (admin-created / reset accounts). */
+  must_change_password?: boolean;
 }
 
 /**
@@ -28,14 +30,15 @@ export class UserRepository {
       email: input.email.trim().toLowerCase(),
       name: input.name,
       role: input.role ?? "member",
+      must_change_password: input.must_change_password ?? false,
       created_at: nowIso(),
       last_login_at: null,
       deactivated_at: null,
     };
     this.db
       .prepare(
-        `INSERT INTO users (id, org_id, email, name, role, password_hash, created_at, last_login_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, org_id, email, name, role, password_hash, must_change_password, created_at, last_login_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         user.id,
@@ -44,10 +47,18 @@ export class UserRepository {
         user.name,
         user.role,
         hashPassword(input.password),
+        user.must_change_password ? 1 : 0,
         user.created_at,
         user.last_login_at,
       );
     return user;
+  }
+
+  /** Set a new password (hashed here) and the must-change flag atomically. */
+  setPassword(id: string, password: string, mustChange: boolean): void {
+    this.db
+      .prepare(`UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?`)
+      .run(hashPassword(password), mustChange ? 1 : 0, id);
   }
 
   findByEmail(email: string): User | null {

@@ -48,6 +48,7 @@ export class UserAdminService {
       name: input.name.trim(),
       role: input.role,
       password,
+      must_change_password: true, // forced change on first login
     });
     this.events.append({
       org_id: orgId,
@@ -58,6 +59,26 @@ export class UserAdminService {
       detail: `role=${user.role}`,
     });
     return { user, password };
+  }
+
+  /** Admin-triggered password reset: new one-time password + forced change. */
+  resetPassword(orgId: string, targetId: string, ctx: AdminContext): CreatedUser {
+    const target = this.users.findById(targetId);
+    if (!target || target.org_id !== orgId) throw new NotFoundError("User not found");
+    if (target.deactivated_at) {
+      throw new ValidationError("Cannot reset a deactivated user");
+    }
+    const password = randomBytes(9).toString("base64url");
+    this.users.setPassword(targetId, password, true);
+    this.events.append({
+      org_id: orgId,
+      actor: ctx.actor,
+      action: "password_reset",
+      target_id: target.id,
+      target_email: target.email,
+      detail: null,
+    });
+    return { user: target, password };
   }
 
   deactivateUser(orgId: string, targetId: string, ctx: AdminContext): User {

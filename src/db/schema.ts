@@ -141,20 +141,21 @@ CREATE INDEX IF NOT EXISTS idx_sub_events_org ON subscription_events(org_id, at)
 -- Operator accounts. Password hashes are scrypt (salt embedded); the app never
 -- stores or logs plaintext. Roles: admin (may change billing) vs member.
 CREATE TABLE IF NOT EXISTS users (
-  id             TEXT PRIMARY KEY,
-  org_id         TEXT NOT NULL REFERENCES organizations(id),
-  email          TEXT NOT NULL UNIQUE,
-  name           TEXT NOT NULL,
-  role           TEXT NOT NULL DEFAULT 'member',
-  password_hash  TEXT NOT NULL,
-  created_at     TEXT NOT NULL,
-  last_login_at  TEXT,
-  deactivated_at TEXT
+  id                   TEXT PRIMARY KEY,
+  org_id               TEXT NOT NULL REFERENCES organizations(id),
+  email                TEXT NOT NULL UNIQUE,
+  name                 TEXT NOT NULL,
+  role                 TEXT NOT NULL DEFAULT 'member',
+  password_hash        TEXT NOT NULL,
+  must_change_password INTEGER NOT NULL DEFAULT 0,
+  created_at           TEXT NOT NULL,
+  last_login_at        TEXT,
+  deactivated_at       TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_org ON users(org_id);
 
--- Append-only audit of user-management actions (create / deactivate / role).
+-- Append-only audit of user-management actions (create / deactivate / reset).
 CREATE TABLE IF NOT EXISTS user_events (
   id          TEXT PRIMARY KEY,
   org_id      TEXT NOT NULL REFERENCES organizations(id),
@@ -167,6 +168,22 @@ CREATE TABLE IF NOT EXISTS user_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_events_org ON user_events(org_id, at);
+
+-- Append-only security/auth events (login success/failure/lockout, password
+-- change/reset). Never stores raw passwords. org_id may be null (e.g. a failed
+-- login for an unknown email).
+CREATE TABLE IF NOT EXISTS security_events (
+  id      TEXT PRIMARY KEY,
+  at      TEXT NOT NULL,
+  event   TEXT NOT NULL,
+  email   TEXT,
+  ip      TEXT,
+  org_id  TEXT,
+  actor   TEXT,
+  detail  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_at ON security_events(at);
 `;
 
 /**
@@ -187,4 +204,5 @@ export const ORG_MIGRATION_COLUMNS: Array<[string, string]> = [
 /** Idempotent column additions for the users table. */
 export const USER_MIGRATION_COLUMNS: Array<[string, string]> = [
   ["deactivated_at", "deactivated_at TEXT"],
+  ["must_change_password", "must_change_password INTEGER NOT NULL DEFAULT 0"],
 ];

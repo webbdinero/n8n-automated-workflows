@@ -31,6 +31,12 @@ export const config = {
   sessionSecret: sessionSecretFromEnv ?? randomBytes(32).toString("hex"),
   sessionSecretIsEphemeral: !sessionSecretFromEnv,
   cookieSecure: nodeEnv === "production",
+  passwordMinLength: envInt("PASSWORD_MIN_LENGTH", 10),
+  // Multi-instance seam (NOT implemented yet). When set, the login rate
+  // limiter and session store should be backed by Redis so throttling and
+  // sessions are shared across instances. See docs/PRODUCTION_AUTH.md.
+  // TODO(redis): back LoginRateLimiter + sessions with this when scaling out.
+  redisUrl: process.env.REDIS_URL ?? null,
   viewsDir: path.join(ROOT_DIR, "src", "views"),
   publicDir: path.join(ROOT_DIR, "src", "public"),
 } as const;

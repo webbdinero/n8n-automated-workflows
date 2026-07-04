@@ -5,7 +5,8 @@ import { formatHelpers } from "./web/format.js";
 import { registerWebRoutes } from "./routes/webRoutes.js";
 import { registerApiRoutes } from "./routes/apiRoutes.js";
 import { registerAuthRoutes } from "./routes/authRoutes.js";
-import { sessionLoader, requireWebAuth } from "./auth/middleware.js";
+import { registerAccountRoutes } from "./routes/accountRoutes.js";
+import { sessionLoader, requireWebAuth, requirePasswordChange } from "./auth/middleware.js";
 import { requireCsrf } from "./auth/csrf.js";
 import { deriveAlerts } from "./services/alertService.js";
 import { entitlementsFor } from "./domain/plans.js";
@@ -95,6 +96,12 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
   // CSRF check for state-changing web POSTs (skips /api, /login, /logout).
   // Runs after context so a rejected request still renders a full error page.
   app.use(requireCsrf(config.sessionSecret));
+
+  // Password change page (reachable even under the forced-change gate below).
+  registerAccountRoutes(app, container);
+
+  // Force first-login / post-reset password change before using the app.
+  app.use(requirePasswordChange());
 
   registerWebRoutes(app, container);
   registerApiRoutes(app, container);

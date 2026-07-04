@@ -448,7 +448,9 @@ export function registerWebRoutes(app: Express, c: Container): void {
       title: "Users",
       users: c.users.listForOrg(org.id),
       history: c.userAdminService.history(org.id, 25),
+      securityEvents: c.securityEvents.listRecent(15),
       created: null,
+      reset: null,
       error: null,
       ...extra,
     });
@@ -495,6 +497,34 @@ export function registerWebRoutes(app: Express, c: Container): void {
       try {
         c.userAdminService.deactivateUser(org.id, req.params.id!, { actor: res.locals.actor });
         res.redirect("/admin/users?deactivated=1");
+      } catch (err) {
+        if (err instanceof ValidationError || err instanceof NotFoundError) {
+          res.status(err instanceof NotFoundError ? 404 : 400);
+          renderUsers(res, { error: err.message });
+          return;
+        }
+        throw err;
+      }
+    }),
+  );
+
+  router.post(
+    "/admin/users/:id/reset-password",
+    requireAdmin(),
+    wrap((req, res) => {
+      const org = res.locals.org;
+      try {
+        const { user, password } = c.userAdminService.resetPassword(org.id, req.params.id!, {
+          actor: res.locals.actor,
+        });
+        c.securityEvents.record({
+          event: "password_reset",
+          email: user.email,
+          ip: req.ip ?? null,
+          org_id: org.id,
+          actor: res.locals.actor,
+        });
+        renderUsers(res, { reset: { email: user.email, password } });
       } catch (err) {
         if (err instanceof ValidationError || err instanceof NotFoundError) {
           res.status(err instanceof NotFoundError ? 404 : 400);

@@ -15,6 +15,12 @@
     One-time password (shown once — copy it now): <code style="font-size:1rem;"><%= created.password %></code>
   </div>
 <% } %>
+<% if (locals.reset) { %>
+  <div class="banner ok">
+    <strong>Password reset for <%= reset.email %>.</strong> They must change it at next sign-in.<br />
+    One-time password (shown once — copy it now): <code style="font-size:1rem;"><%= reset.password %></code>
+  </div>
+<% } %>
 
 <div class="grid cols-2">
   <section class="card">
@@ -31,13 +37,21 @@
               <td><%= u.deactivated_at ? 'Deactivated' : 'Active' %></td>
               <td class="small nowrap"><%= u.last_login_at ? fmtDateTime(u.last_login_at) : '—' %></td>
               <td>
-                <% if (!u.deactivated_at && u.email !== currentUser.email) { %>
-                  <form method="post" action="/admin/users/<%= u.id %>/deactivate" data-confirm="Deactivate <%= u.email %>? They will lose access immediately.">
-                    <%- include('partials/csrf') %>
-                    <button class="btn small ghost" type="submit">Deactivate</button>
-                  </form>
-                <% } else if (u.email === currentUser.email) { %>
-                  <span class="small muted">you</span>
+                <% if (!u.deactivated_at) { %>
+                  <div class="toolbar">
+                    <form method="post" action="/admin/users/<%= u.id %>/reset-password" data-confirm="Reset the password for <%= u.email %>? A new one-time password will be shown once.">
+                      <%- include('partials/csrf') %>
+                      <button class="btn small ghost" type="submit">Reset password</button>
+                    </form>
+                    <% if (u.email !== currentUser.email) { %>
+                      <form method="post" action="/admin/users/<%= u.id %>/deactivate" data-confirm="Deactivate <%= u.email %>? They will lose access immediately.">
+                        <%- include('partials/csrf') %>
+                        <button class="btn small ghost" type="submit">Deactivate</button>
+                      </form>
+                    <% } else { %>
+                      <span class="small muted">(you)</span>
+                    <% } %>
+                  </div>
                 <% } %>
               </td>
             </tr>
@@ -71,6 +85,30 @@
     </form>
   </section>
 </div>
+
+<section class="card" style="margin-top:16px;">
+  <h2>Recent sign-in activity <span class="small muted">(security events)</span></h2>
+  <% if (!securityEvents || !securityEvents.length) { %>
+    <p class="muted small">No sign-in activity recorded yet.</p>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="nowrap">When</th><th>Event</th><th>Email</th><th>IP</th><th>Detail</th></tr></thead>
+        <tbody>
+          <% securityEvents.forEach(function (e) { %>
+            <tr>
+              <td class="small nowrap"><%= fmtDateTime(e.at) %></td>
+              <td class="<%= /failure|lockout|failed/.test(e.event) ? 'sev-high' : '' %>"><%= humanize(e.event) %></td>
+              <td><%= e.email || '—' %></td>
+              <td class="small"><%= e.ip || '—' %></td>
+              <td class="small"><%= e.detail || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
 
 <section class="card" style="margin-top:16px;">
   <h2>User-management audit <span class="small muted">(immutable)</span></h2>
