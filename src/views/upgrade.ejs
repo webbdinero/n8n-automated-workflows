@@ -1,0 +1,17 @@
+<%- include('partials/header') %>
+<div class="page-head">
+  <div>
+    <h1><%= title || 'Upgrade required' %></h1>
+    <p class="subtitle">This capability isn't included in your current plan.</p>
+  </div>
+</div>
+<section class="card" style="max-width:640px;">
+  <p><strong><%= feature %></strong> requires a higher plan.</p>
+  <% if (locals.message) { %><p class="muted"><%= message %></p><% } %>
+  <p class="small muted">Current plan: <strong><%= org.plan %></strong> · status <%= humanize(org.subscription_status) %>.</p>
+  <div class="toolbar" style="margin-top:12px;">
+    <a class="btn" href="/admin#subscription">Manage subscription</a>
+    <a class="btn ghost" href="/">Back to dashboard</a>
+  </div>
+</section>
+<%- include('partials/footer') %>

@@ -1,0 +1,116 @@
+<%- include('partials/header') %>
+<div class="page-head">
+  <div>
+    <h1>Grants</h1>
+    <p class="subtitle"><%= total %> result<%= total === 1 ? '' : 's' %></p>
+  </div>
+  <div class="toolbar no-print">
+    <a class="btn ghost" href="/exports/grants.csv">Export CSV</a>
+    <a class="btn ghost" href="/exports/grants.json">Export JSON</a>
+    <a class="btn" href="/grants/new">Add grant</a>
+  </div>
+</div>
+
+<form class="card" method="get" action="/grants" style="margin-bottom:16px;">
+  <div class="field">
+    <label for="q">Search <span class="hint">grant #, title, grantor, subrecipient, program, category</span></label>
+    <input type="search" id="q" name="q" value="<%= filters.q || '' %>" placeholder="e.g. SLFRF, water, Rivera" />
+  </div>
+  <div class="filters">
+    <div>
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">All</option>
+        <% enums.GRANT_STATUSES.forEach(function (s) { %>
+          <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= humanize(s) %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label for="funding_source">Funding</label>
+      <select id="funding_source" name="funding_source">
+        <option value="">All</option>
+        <% enums.FUNDING_SOURCES.forEach(function (s) { %>
+          <option value="<%= s %>" <%= filters.funding_source === s ? 'selected' : '' %>><%= s %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label for="risk_tier">Risk tier</label>
+      <select id="risk_tier" name="risk_tier">
+        <option value="">All</option>
+        <% enums.RISK_TIERS.forEach(function (s) { %>
+          <option value="<%= s %>" <%= filters.risk_tier === s ? 'selected' : '' %>><%= humanize(s) %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label for="classification">Classification</label>
+      <select id="classification" name="classification">
+        <option value="">All</option>
+        <% enums.CLASSIFICATIONS.forEach(function (s) { %>
+          <option value="<%= s %>" <%= filters.classification === s ? 'selected' : '' %>><%= humanize(s) %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label for="assigned_to">Owner</label>
+      <select id="assigned_to" name="assigned_to">
+        <option value="">All</option>
+        <% assignees.forEach(function (a) { %>
+          <option value="<%= a %>" <%= filters.assigned_to === a ? 'selected' : '' %>><%= a %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label for="sort">Sort</label>
+      <select id="sort" name="sort">
+        <% [['risk_desc','Risk (high→low)'],['deadline_asc','Deadline (soonest)'],['award_desc','Award (largest)'],['updated_desc','Recently updated'],['number_asc','Grant number']].forEach(function (o) { %>
+          <option value="<%= o[0] %>" <%= filters.sort === o[0] ? 'selected' : '' %>><%= o[1] %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <div class="toolbar">
+        <button class="btn" type="submit">Apply</button>
+        <a class="btn ghost" href="/grants">Reset</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Grant</th><th>Funding</th><th>Owner</th><th>Status</th><th>Classification</th>
+          <th class="num">Award</th><th class="num">Unspent</th><th class="num">Exp. deadline</th><th>Risk</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!grants.length) { %>
+          <tr><td colspan="9" class="empty">No grants match. Try resetting filters or <a href="/import">import a portfolio</a>.</td></tr>
+        <% } %>
+        <% grants.forEach(function (g) { %>
+          <tr>
+            <td>
+              <a class="row-link" href="/grants/<%= g.id %>"><%= g.grant_number %></a>
+              <div class="small muted"><%= g.title %></div>
+            </td>
+            <td><span class="badge muted"><%= g.funding_source %></span></td>
+            <td class="nowrap"><%= g.assigned_to || '—' %></td>
+            <td><%= humanize(g.status) %></td>
+            <td><%= humanize(g.classification) %></td>
+            <td class="num"><%= fmtMoney(g.award_amount) %></td>
+            <td class="num"><%= fmtMoney(Math.max(0, g.award_amount - g.expended_amount)) %></td>
+            <td class="num nowrap"><%= fmtDate(g.expenditure_deadline) %></td>
+            <td><span class="badge <%= tierClass(g.risk_tier) %>"><%= g.risk_score %></span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('partials/footer') %>

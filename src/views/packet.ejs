@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<main class="container" style="max-width:900px;">
+  <% const g = packet.grant; const f = packet.financials; %>
+  <div class="toolbar no-print" style="margin-bottom:16px;">
+    <button class="btn" onclick="window.print()">Print / Save as PDF</button>
+    <a class="btn ghost" href="/grants/<%= g.id %>">← Back to grant</a>
+  </div>
+
+  <header style="border-bottom:2px solid var(--brand); padding-bottom:12px; margin-bottom:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="small muted">GrantGuard · Compliance Packet</div>
+        <h1 style="margin:4px 0;"><%= g.grant_number %> — <%= g.title %></h1>
+        <div><%= packet.org.name %> · <%= fundingLabel(g.funding_source) %></div>
+      </div>
+      <div class="right">
+        <span class="badge <%= tierClass(packet.risk.tier) %>">Risk <%= packet.risk.score %>/100 · <%= humanize(packet.risk.tier) %></span>
+        <% if (packet.premium) { %><span class="badge tier-low">Premium</span><% } %>
+        <div class="small muted" style="margin-top:6px;">As of <%= fmtDate(packet.as_of) %></div>
+      </div>
+    </div>
+  </header>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Grant summary</h2>
+    <dl class="kv">
+      <dt>Grantor</dt><dd><%= g.grantor || '—' %></dd>
+      <dt>Program</dt><dd><%= g.program || '—' %></dd>
+      <dt>Subrecipient</dt><dd><%= g.subrecipient || '—' %></dd>
+      <dt>Department</dt><dd><%= g.department || '—' %></dd>
+      <dt>Category</dt><dd><%= g.category || '—' %></dd>
+      <dt>Owner</dt><dd><%= g.assigned_to || '—' %></dd>
+      <dt>Status</dt><dd><%= humanize(g.status) %></dd>
+      <dt>Classification</dt><dd><%= humanize(g.classification) %></dd>
+      <dt>Award date</dt><dd><%= fmtDate(g.award_date) %></dd>
+      <dt>Obligation deadline</dt><dd><%= fmtDate(g.obligation_deadline) %></dd>
+      <dt>Expenditure deadline</dt><dd><%= fmtDate(g.expenditure_deadline) %></dd>
+    </dl>
+  </section>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Financial status</h2>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><th>Award amount</th><td class="num"><%= fmtMoneyExact(g.award_amount) %></td></tr>
+          <tr><th>Obligated</th><td class="num"><%= fmtMoneyExact(g.obligated_amount) %> (<%= fmtPct(f.pctObligated) %>)</td></tr>
+          <tr><th>Expended</th><td class="num"><%= fmtMoneyExact(g.expended_amount) %> (<%= fmtPct(f.pctSpent) %>)</td></tr>
+          <tr><th>Unobligated</th><td class="num"><%= fmtMoneyExact(f.unobligated) %></td></tr>
+          <tr><th>Unspent</th><td class="num"><strong><%= fmtMoneyExact(f.unspent) %></strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Risk assessment</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Factor</th><th class="num">Points</th><th>Assessment</th></tr></thead>
+        <tbody>
+          <% packet.risk.factors.forEach(function (fac) { %>
+            <tr><td><%= fac.label %></td><td class="num"><%= Math.round(fac.points) %> / <%= fac.weight %></td><td class="small"><%= fac.detail %></td></tr>
+          <% }); %>
+          <tr><th>Composite score</th><th class="num"><%= packet.risk.score %> / 100</th><th><%= humanize(packet.risk.tier) %></th></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Reporting obligations</h2>
+    <% if (!packet.tasks.length) { %><p class="muted small">None recorded.</p><% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Obligation</th><th>Type</th><th>Due</th><th>Status</th><th>Outcome</th><th class="num">Turnaround</th></tr></thead>
+        <tbody>
+          <% packet.tasks.forEach(function (t) { %>
+            <tr><td><%= t.title %></td><td><%= humanize(t.type) %></td><td class="nowrap"><%= fmtDate(t.due_date) %></td><td><%= humanize(t.status) %></td><td><%= t.outcome ? humanize(t.outcome) : '—' %></td><td class="num"><%= t.turnaround_days != null ? t.turnaround_days + ' d' : '—' %></td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </section>
+
+  <% if (packet.premium && packet.benchmark) { %>
+    <section class="card" style="margin-bottom:16px;">
+      <h2>Peer benchmark <span class="small muted">(anonymized · <%= packet.benchmark.peerOrgCount %> peer org(s))</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th class="num">This grantee</th><th class="num">Peer pool</th></tr></thead>
+          <tbody>
+            <tr><td>Burn rate</td><td class="num"><%= fmtPct(packet.benchmark.org.burnRatePct) %></td><td class="num"><%= fmtPct(packet.benchmark.peer.burnRatePct) %></td></tr>
+            <tr><td>On-time reporting rate</td><td class="num"><%= fmtPct(packet.benchmark.org.onTimeReportPct) %></td><td class="num"><%= fmtPct(packet.benchmark.peer.onTimeReportPct) %></td></tr>
+            <tr><td>Active grants at risk</td><td class="num"><%= fmtPct(packet.benchmark.org.atRiskPct) %></td><td class="num"><%= fmtPct(packet.benchmark.peer.atRiskPct) %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% } else if (!packet.premium) { %>
+    <div class="banner info no-print">Upgrade to a premium plan to include an anonymized peer-benchmark section in this packet.</div>
+  <% } %>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Audit trail</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="nowrap">Timestamp</th><th>Actor</th><th>Event</th><th>Detail</th></tr></thead>
+        <tbody>
+          <% packet.events.slice().reverse().forEach(function (e) { %>
+            <tr><td class="nowrap small"><%= fmtDateTime(e.at) %></td><td class="small"><%= e.actor %></td><td class="small"><%= humanize(e.event_type) %></td><td class="small"><%= e.summary %></td></tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="small muted" style="border-top:1px solid var(--border); padding-top:12px;">
+    Generated by GrantGuard on <%= fmtDateTime(packet.generated_at) %> · as of <%= fmtDate(packet.as_of) %>.
+    This packet is compiled from the immutable audit trail for <%= g.grant_number %>. Figures reflect data recorded at generation time.
+  </footer>
+</main>
+</body>
+</html>

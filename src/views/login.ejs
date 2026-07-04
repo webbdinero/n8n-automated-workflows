@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in · <%= appName %></title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="container" style="max-width:400px; padding-top:64px;">
+    <div style="text-align:center; margin-bottom:20px;">
+      <div class="brand" style="justify-content:center; color:var(--brand); font-size:1.3rem;">
+        <span class="dot" aria-hidden="true"></span><%= appName %>
+      </div>
+      <p class="muted small" style="margin-top:6px;">Grant compliance monitoring</p>
+    </div>
+    <section class="card">
+      <h1 style="font-size:1.2rem;">Sign in</h1>
+      <% if (error) { %><div class="banner err"><%= error %></div><% } %>
+      <form method="post" action="/login">
+        <input type="hidden" name="next" value="<%= next %>" />
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required value="<%= email %>" autofocus />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn" type="submit" style="width:100%;">Sign in</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>

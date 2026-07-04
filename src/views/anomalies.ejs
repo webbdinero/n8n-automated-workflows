@@ -1,0 +1,61 @@
+<%- include('partials/header') %>
+<div class="page-head">
+  <div>
+    <h1>Anomalies</h1>
+    <p class="subtitle">Rule-based oversight queue — <%= rows.length %> open item<%= rows.length === 1 ? '' : 's' %></p>
+  </div>
+  <% if (currentUser && currentUser.role === 'admin') { %>
+  <form method="post" action="/admin/recompute-anomalies" class="no-print">
+    <%- include('partials/csrf') %>
+    <button class="btn ghost" type="submit">Recompute anomalies</button>
+  </form>
+  <% } %>
+</div>
+
+<% if (locals.query && query.recomputed !== undefined) { %>
+  <div class="banner ok">Recompute complete — <%= query.recomputed %> new anomaly event(s) flagged.</div>
+<% } %>
+
+<% if (!rows.length) { %>
+  <div class="card empty">No open anomalies. Rules run on grant updates and on demand (Recompute).</div>
+<% } else { %>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Grant</th><th>Rule</th><th>Severity</th><th>Status</th><th class="nowrap">Flagged</th><th>Explanation</th><th class="no-print">Review</th></tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(function (row) { const a = row.anomaly; %>
+            <tr>
+              <td><a class="row-link" href="/grants/<%= a.grant_id %>#anomalies"><%= row.grant_number %></a><div class="small muted"><%= row.grant_title %></div></td>
+              <td><%= humanize(a.rule_name) %></td>
+              <td><span class="badge <%= a.severity === 'high' ? 'tier-critical' : (a.severity === 'medium' ? 'tier-high' : 'tier-medium') %>"><%= humanize(a.severity) %></span></td>
+              <td><%= humanize(a.status) %></td>
+              <td class="small nowrap"><%= fmtDate(a.created_at) %></td>
+              <td class="small"><%= a.details %></td>
+              <td class="no-print">
+                <% if (currentUser && currentUser.role === 'admin') { %>
+                  <form method="post" action="/anomalies/<%= a.id %>/status" class="toolbar" style="align-items:flex-end;">
+                    <%- include('partials/csrf') %>
+                    <div>
+                      <select name="status" aria-label="New status">
+                        <% anomalyStatuses.forEach(function (s) { %><option value="<%= s %>" <%= a.status === s ? 'selected' : '' %>><%= humanize(s) %></option><% }); %>
+                      </select>
+                    </div>
+                    <input name="note" placeholder="note (optional)" style="max-width:160px;" />
+                    <button class="btn small" type="submit">Update</button>
+                  </form>
+                <% } else { %>
+                  <span class="small muted">admin only</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <p class="small muted" style="margin-top:10px;">Marking an anomaly <em>cleared</em> resolves it; all status changes are written to the grant's audit trail.</p>
+<% } %>
+<%- include('partials/footer') %>

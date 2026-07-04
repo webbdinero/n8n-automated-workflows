@@ -1,0 +1,137 @@
+<%- include('partials/header') %>
+<% if (locals.query && query.password_changed !== undefined) { %>
+  <div class="banner ok">Your password has been updated.</div>
+<% } %>
+<div class="page-head">
+  <div>
+    <h1>Portfolio Overview</h1>
+    <p class="subtitle"><%= org.name %> · <%= summary.totalGrants %> grants tracked</p>
+  </div>
+  <div class="toolbar no-print">
+    <a class="btn secondary" href="/import">Import grants</a>
+    <a class="btn" href="/grants/new">Add grant</a>
+  </div>
+</div>
+
+<section class="grid kpis" aria-label="Key metrics">
+  <div class="card kpi">
+    <div class="label">Portfolio value</div>
+    <div class="value"><%= fmtMoney(summary.totalAward) %></div>
+    <div class="sub"><%= fmtPct(summary.pctSpent) %> spent · <%= fmtPct(summary.pctObligated) %> obligated</div>
+  </div>
+  <div class="card kpi <%= summary.totalUnspent > 0 ? 'warn' : '' %>">
+    <div class="label">Unspent balance</div>
+    <div class="value"><%= fmtMoney(summary.totalUnspent) %></div>
+    <div class="sub">Across <%= summary.activeGrants %> active grants</div>
+  </div>
+  <div class="card kpi <%= summary.atRiskCount ? 'danger' : '' %>">
+    <div class="label">Grants at risk</div>
+    <div class="value"><%= summary.atRiskCount %></div>
+    <div class="sub">High or critical tier</div>
+  </div>
+  <div class="card kpi <%= summary.expiringSoonCount ? 'danger' : '' %>">
+    <div class="label">Expiring ≤ 90 days</div>
+    <div class="value"><%= summary.expiringSoonCount %></div>
+    <div class="sub"><%= fmtMoney(summary.expiringSoonUnspent) %> unspent exposed</div>
+  </div>
+  <div class="card kpi <%= summary.overdueTasks ? 'danger' : '' %>">
+    <div class="label">Overdue reports</div>
+    <div class="value"><%= summary.overdueTasks %></div>
+    <div class="sub"><%= summary.upcomingTasks %> due in next 30 days</div>
+  </div>
+</section>
+
+<div class="grid cols-2" style="margin-top:16px;">
+  <section class="card">
+    <h2>Highest-risk grants</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Grant</th><th>Funding</th><th class="num">Unspent</th><th class="num">Exp. deadline</th><th>Risk</th></tr>
+        </thead>
+        <tbody>
+          <% if (!topRisk.length) { %>
+            <tr><td colspan="5" class="empty">No grants yet. <a href="/import">Import your portfolio</a> to begin.</td></tr>
+          <% } %>
+          <% topRisk.forEach(function (g) { %>
+            <tr>
+              <td><a class="row-link" href="/grants/<%= g.id %>"><%= g.grant_number %></a><div class="small muted"><%= g.title %></div></td>
+              <td><span class="badge muted"><%= g.funding_source %></span></td>
+              <td class="num"><%= fmtMoney(Math.max(0, g.award_amount - g.expended_amount)) %></td>
+              <td class="num nowrap">
+                <%= fmtDate(g.expenditure_deadline) %>
+                <div class="small muted"><%= relativeDays(g.expenditure_deadline) %></div>
+              </td>
+              <td><span class="badge <%= tierClass(g.risk_tier) %>"><%= g.risk_score %> · <%= humanize(g.risk_tier) %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <p class="small" style="margin-top:10px;"><a href="/grants?sort=risk_desc">View all grants →</a></p>
+  </section>
+
+  <section class="stack">
+    <div class="card">
+      <h2>Risk distribution</h2>
+      <% ['critical','high','medium','low'].forEach(function (tier) {
+           const count = summary.byTier[tier] || 0;
+           const pct = summary.totalGrants ? Math.round(count / summary.totalGrants * 100) : 0; %>
+        <div class="factor">
+          <div class="top"><span><span class="badge <%= tierClass(tier) %>"><%= humanize(tier) %></span></span><span><%= count %></span></div>
+          <div class="bar"><span style="width:<%= pct %>%; background:var(--tier-<%= tier %>);"></span></div>
+        </div>
+      <% }); %>
+    </div>
+
+    <div class="card">
+      <h2>By funding source</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Source</th><th class="num">Grants</th><th class="num">Award</th></tr></thead>
+          <tbody>
+            <% summary.byFundingSource.forEach(function (f) { %>
+              <tr><td><%= f.source %></td><td class="num"><%= f.count %></td><td class="num"><%= fmtMoney(f.award) %></td></tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="grid cols-2" style="margin-top:16px;">
+  <section class="card">
+    <h2>Top alerts</h2>
+    <% if (!alerts.length) { %>
+      <p class="empty">No active alerts. 🎉</p>
+    <% } else { %>
+      <ul class="timeline">
+        <% alerts.forEach(function (a) { %>
+          <li>
+            <div class="when sev-<%= a.severity %>"><strong><%= humanize(a.severity) %></strong> · <%= a.kind %></div>
+            <div class="summary"><a href="/grants/<%= a.grant_id %>"><%= a.grant_number %></a> — <%= a.message %></div>
+          </li>
+        <% }); %>
+      </ul>
+      <p class="small" style="margin-top:10px;"><a href="/alerts">View all alerts →</a></p>
+    <% } %>
+  </section>
+
+  <section class="card">
+    <h2>Recent activity</h2>
+    <% if (!recentEvents.length) { %>
+      <p class="empty">No activity recorded yet.</p>
+    <% } else { %>
+      <ul class="timeline">
+        <% recentEvents.forEach(function (e) { %>
+          <li>
+            <div class="when"><%= fmtDateTime(e.at) %> · <%= e.actor %></div>
+            <div class="summary"><a href="/grants/<%= e.grant_id %>"><%= e.summary %></a></div>
+          </li>
+        <% }); %>
+      </ul>
+    <% } %>
+  </section>
+</div>
+<%- include('partials/footer') %>

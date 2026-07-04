@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<main class="container" style="max-width:920px;">
+  <% const g = caseFile.grant; const f = caseFile.financials; %>
+  <div class="toolbar no-print" style="margin-bottom:16px;">
+    <button class="btn" onclick="window.print()">Print / Save as PDF</button>
+    <a class="btn ghost" href="/grants/<%= g.id %>/casefile?download=1">Download .html</a>
+    <a class="btn ghost" href="/grants/<%= g.id %>">← Back to grant</a>
+  </div>
+
+  <header style="border-bottom:2px solid var(--brand); padding-bottom:12px; margin-bottom:16px;">
+    <div class="small muted">GrantGuard · Investigation Case File</div>
+    <h1 style="margin:4px 0;"><%= g.grant_number %> — <%= g.title %></h1>
+    <div><%= caseFile.org.name %> · <%= fundingLabel(g.funding_source) %></div>
+    <div class="small muted" style="margin-top:6px;">
+      Generated <%= fmtDateTime(caseFile.generated_at) %> · as of <%= fmtDate(caseFile.as_of) %> ·
+      Risk <%= caseFile.risk.score %>/100 (<%= humanize(caseFile.risk.tier) %>)
+    </div>
+  </header>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Grant snapshot</h2>
+    <dl class="kv">
+      <dt>Grantor</dt><dd><%= g.grantor || '—' %></dd>
+      <dt>Program</dt><dd><%= g.program || '—' %></dd>
+      <dt>Subrecipient</dt><dd><%= g.subrecipient || '—' %></dd>
+      <dt>Department</dt><dd><%= g.department || '—' %></dd>
+      <dt>Category</dt><dd><%= g.category || '—' %></dd>
+      <dt>Owner</dt><dd><%= g.assigned_to || '—' %></dd>
+      <dt>Status</dt><dd><%= humanize(g.status) %></dd>
+      <dt>Classification</dt><dd><%= humanize(g.classification) %></dd>
+      <dt>Award / Obligated / Expended</dt><dd><%= fmtMoneyExact(g.award_amount) %> / <%= fmtMoneyExact(g.obligated_amount) %> / <%= fmtMoneyExact(g.expended_amount) %></dd>
+      <dt>Unspent</dt><dd><strong><%= fmtMoneyExact(f.unspent) %></strong> (<%= fmtPct(f.pctSpent) %> spent)</dd>
+      <dt>Award date</dt><dd><%= fmtDate(g.award_date) %></dd>
+      <dt>Obligation deadline</dt><dd><%= fmtDate(g.obligation_deadline) %></dd>
+      <dt>Expenditure deadline</dt><dd><%= fmtDate(g.expenditure_deadline) %></dd>
+    </dl>
+    <% if (g.review_notes) { %><hr class="sep" /><h3>Reviewer notes</h3><p class="small"><%= g.review_notes %></p><% } %>
+  </section>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Anomalies <span class="small muted">(<%= caseFile.anomalies.length %>)</span></h2>
+    <% if (!caseFile.anomalies.length) { %><p class="muted small">None recorded.</p><% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Rule</th><th>Severity</th><th>Status</th><th>Explanation</th><th class="nowrap">Flagged</th><th>Resolved</th></tr></thead>
+      <tbody>
+        <% caseFile.anomalies.forEach(function (a) { %>
+          <tr><td><%= humanize(a.rule_name) %></td><td><%= humanize(a.severity) %></td><td><%= humanize(a.status) %></td><td class="small"><%= a.details %></td><td class="small nowrap"><%= fmtDate(a.created_at) %></td><td class="small"><%= a.resolved_at ? fmtDate(a.resolved_at) + (a.resolution_note ? ' — ' + a.resolution_note : '') : '—' %></td></tr>
+        <% }); %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </section>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Evidence <span class="small muted">(<%= caseFile.evidence.length %>)</span></h2>
+    <% if (!caseFile.evidence.length) { %><p class="muted small">None recorded.</p><% } else { %>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Type</th><th>Metadata</th><th>Hash</th><th>Added by</th><th class="nowrap">When</th><th>Status</th></tr></thead>
+      <tbody>
+        <% caseFile.evidence.forEach(function (ev) {
+             const meta = ev.type === 'attachment' ? (ev.filename || '') : ev.type === 'link' ? (ev.url || '') : (ev.note || ''); %>
+          <tr><td><%= humanize(ev.type) %></td><td class="small"><%= meta %></td><td class="small"><%= ev.content_hash || '—' %></td><td class="small"><%= ev.created_by_email || 'system' %></td><td class="small nowrap"><%= fmtDateTime(ev.created_at) %></td><td class="small"><%= humanize(ev.status) %></td></tr>
+        <% }); %>
+      </tbody>
+    </table></div>
+    <% } %>
+  </section>
+
+  <section class="card" style="margin-bottom:16px;">
+    <h2>Change history <span class="small muted">(<%= caseFile.events.length %> events)</span></h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th class="nowrap">Timestamp</th><th>Actor</th><th>Event</th><th>Field</th><th>Old → New</th><th>Summary</th></tr></thead>
+      <tbody>
+        <% caseFile.events.forEach(function (e) { %>
+          <tr>
+            <td class="small nowrap"><%= fmtDateTime(e.at) %></td>
+            <td class="small"><%= e.actor %></td>
+            <td class="small"><%= humanize(e.event_type) %></td>
+            <td class="small"><%= e.field ? humanize(e.field) : '—' %></td>
+            <td class="small"><%= (e.old_value || e.new_value) ? ((e.old_value || '—') + ' → ' + (e.new_value || '—')) : '—' %></td>
+            <td class="small"><%= e.summary %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer class="small muted" style="border-top:1px solid var(--border); padding-top:12px;">
+    Compiled by GrantGuard from the immutable audit trail for <%= g.grant_number %> on <%= fmtDateTime(caseFile.generated_at) %>.
+    Suitable for inclusion in an audit binder. Figures reflect data recorded at generation time.
+  </footer>
+</main>
+</body>
+</html>
