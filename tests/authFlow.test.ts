@@ -4,6 +4,7 @@ import { createApp } from "../src/server.js";
 import { createContainer, type Container } from "../src/container.js";
 import { openMemoryDb } from "../src/db/connection.js";
 import { config } from "../src/config.js";
+import { csrfFromSessionValue } from "../src/auth/csrf.js";
 import { grantInput } from "./support.js";
 
 /**
@@ -106,11 +107,13 @@ describe("auth flow (end-to-end)", () => {
     const page = await fetch(`${baseUrl}/grants`, { headers: { cookie }, redirect: "manual" });
     expect(page.status).toBe(200);
 
-    // Mutate a grant as the logged-in user.
+    // Mutate a grant as the logged-in user (with the session-bound CSRF token).
+    const sessionValue = cookie.slice(cookie.indexOf("=") + 1);
+    const csrf = csrfFromSessionValue(sessionValue, config.sessionSecret)!;
     const upd = await fetch(`${baseUrl}/grants/${grantId}`, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded", cookie },
-      body: new URLSearchParams({ assigned_to: "Assigned By Jane" }),
+      body: new URLSearchParams({ assigned_to: "Assigned By Jane", _csrf: csrf }),
       redirect: "manual",
     });
     expect(upd.status).toBe(302);
@@ -121,5 +124,16 @@ describe("auth flow (end-to-end)", () => {
       .find((e) => e.field === "assigned_to");
     expect(change).toBeTruthy();
     expect(change!.actor).toBe("jane@pilot.gov");
+  });
+
+  it("blocks an authenticated POST that is missing the CSRF token", async () => {
+    const cookie = await login();
+    const res = await fetch(`${baseUrl}/grants/${grantId}`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie },
+      body: new URLSearchParams({ assigned_to: "No CSRF" }), // no _csrf
+      redirect: "manual",
+    });
+    expect(res.status).toBe(403);
   });
 });

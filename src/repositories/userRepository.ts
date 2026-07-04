@@ -30,6 +30,7 @@ export class UserRepository {
       role: input.role ?? "member",
       created_at: nowIso(),
       last_login_at: null,
+      deactivated_at: null,
     };
     this.db
       .prepare(
@@ -61,12 +62,16 @@ export class UserRepository {
     return row ? rowToUser(row as Row) : null;
   }
 
-  /** Verify credentials. Returns the public user on success, null otherwise. */
+  /**
+   * Verify credentials. Returns the public user on success, null otherwise.
+   * Deactivated accounts never authenticate.
+   */
   authenticate(email: string, password: string): User | null {
     const row = this.db
       .prepare(`SELECT * FROM users WHERE email = ?`)
       .get(email.trim().toLowerCase()) as Row | undefined;
     if (!row) return null;
+    if (row.deactivated_at != null) return null;
     if (!verifyPassword(password, String(row.password_hash))) return null;
     return rowToUser(row);
   }
@@ -75,9 +80,23 @@ export class UserRepository {
     this.db.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`).run(nowIso(), id);
   }
 
+  deactivate(id: string): void {
+    this.db.prepare(`UPDATE users SET deactivated_at = ? WHERE id = ?`).run(nowIso(), id);
+  }
+
   countForOrg(orgId: string): number {
     const row = this.db
       .prepare(`SELECT COUNT(*) AS n FROM users WHERE org_id = ?`)
+      .get(orgId) as Row;
+    return Number(row.n ?? 0);
+  }
+
+  /** Count active (non-deactivated) admins — used to prevent locking out. */
+  countActiveAdmins(orgId: string): number {
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM users WHERE org_id = ? AND role = 'admin' AND deactivated_at IS NULL`,
+      )
       .get(orgId) as Row;
     return Number(row.n ?? 0);
   }

@@ -1,0 +1,98 @@
+<%- include('partials/header') %>
+<div class="page-head">
+  <div>
+    <h1>Users</h1>
+    <p class="subtitle">Admin-only. Create operators and deactivate access. No self-signup.</p>
+  </div>
+  <div class="toolbar"><a class="btn ghost" href="/admin">← Admin</a></div>
+</div>
+
+<% if (error) { %><div class="banner err"><%= error %></div><% } %>
+<% if (locals.deactivated) { %><div class="banner ok">User deactivated.</div><% } %>
+<% if (created) { %>
+  <div class="banner ok">
+    <strong>User created:</strong> <%= created.email %><br />
+    One-time password (shown once — copy it now): <code style="font-size:1rem;"><%= created.password %></code>
+  </div>
+<% } %>
+
+<div class="grid cols-2">
+  <section class="card">
+    <h2>Operators</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th class="nowrap">Last sign-in</th><th></th></tr></thead>
+        <tbody>
+          <% users.forEach(function (u) { %>
+            <tr>
+              <td><%= u.name %></td>
+              <td><%= u.email %></td>
+              <td><%= humanize(u.role) %></td>
+              <td><%= u.deactivated_at ? 'Deactivated' : 'Active' %></td>
+              <td class="small nowrap"><%= u.last_login_at ? fmtDateTime(u.last_login_at) : '—' %></td>
+              <td>
+                <% if (!u.deactivated_at && u.email !== currentUser.email) { %>
+                  <form method="post" action="/admin/users/<%= u.id %>/deactivate" data-confirm="Deactivate <%= u.email %>? They will lose access immediately.">
+                    <%- include('partials/csrf') %>
+                    <button class="btn small ghost" type="submit">Deactivate</button>
+                  </form>
+                <% } else if (u.email === currentUser.email) { %>
+                  <span class="small muted">you</span>
+                <% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Add user</h2>
+    <p class="small muted">A one-time password is generated and shown once. The user cannot change it in-app yet — share it securely.</p>
+    <form method="post" action="/admin/users">
+      <%- include('partials/csrf') %>
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" required />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required />
+      </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="member">Member</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button class="btn" type="submit">Create user</button>
+    </form>
+  </section>
+</div>
+
+<section class="card" style="margin-top:16px;">
+  <h2>User-management audit <span class="small muted">(immutable)</span></h2>
+  <% if (!history.length) { %>
+    <p class="muted small">No user-management activity yet.</p>
+  <% } else { %>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="nowrap">When</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+        <tbody>
+          <% history.forEach(function (e) { %>
+            <tr>
+              <td class="small nowrap"><%= fmtDateTime(e.at) %></td>
+              <td><%= e.actor %></td>
+              <td><%= humanize(e.action) %></td>
+              <td><%= e.target_email || '—' %></td>
+              <td class="small"><%= e.detail || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

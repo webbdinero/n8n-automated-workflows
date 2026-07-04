@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "../config.js";
-import { SCHEMA_SQL, ORG_MIGRATION_COLUMNS } from "./schema.js";
+import { SCHEMA_SQL, ORG_MIGRATION_COLUMNS, USER_MIGRATION_COLUMNS } from "./schema.js";
 
 // `node:sqlite` is an experimental Node 22 builtin that predates bundler
 // builtin-module lists (Vite/Vitest try to resolve it as a file and fail).
@@ -16,14 +16,23 @@ let db: DatabaseSyncType | null = null;
 
 /** Apply idempotent schema migrations (add columns missing on older DBs). */
 function migrate(conn: DatabaseSyncType): void {
+  addMissingColumns(conn, "organizations", ORG_MIGRATION_COLUMNS);
+  addMissingColumns(conn, "users", USER_MIGRATION_COLUMNS);
+}
+
+function addMissingColumns(
+  conn: DatabaseSyncType,
+  table: string,
+  columns: Array<[string, string]>,
+): void {
   const existing = new Set(
-    (conn.prepare("PRAGMA table_info(organizations)").all() as Array<{ name: string }>).map(
+    (conn.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(
       (r) => r.name,
     ),
   );
-  for (const [name, ddl] of ORG_MIGRATION_COLUMNS) {
+  for (const [name, ddl] of columns) {
     if (!existing.has(name)) {
-      conn.exec(`ALTER TABLE organizations ADD COLUMN ${ddl}`);
+      conn.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
     }
   }
 }

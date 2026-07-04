@@ -6,6 +6,7 @@ import type {
   UsageEvent,
   SubscriptionEvent,
   User,
+  UserEvent,
 } from "../domain/schemas.js";
 import type {
   Classification,
@@ -60,6 +61,20 @@ export function rowToUser(r: Row): User {
     role: str(r.role) as UserRole,
     created_at: str(r.created_at),
     last_login_at: nstr(r.last_login_at),
+    deactivated_at: nstr(r.deactivated_at),
+  };
+}
+
+export function rowToUserEvent(r: Row): UserEvent {
+  return {
+    id: str(r.id),
+    org_id: str(r.org_id),
+    at: str(r.at),
+    actor: str(r.actor),
+    action: str(r.action),
+    target_id: nstr(r.target_id),
+    target_email: nstr(r.target_email),
+    detail: nstr(r.detail),
   };
 }
 

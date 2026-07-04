@@ -31,16 +31,35 @@ export function registerAuthRoutes(app: Express, c: Container): void {
     const email = String(req.body.email ?? "");
     const password = String(req.body.password ?? "");
     const next = safeNext(req.body.next);
-    const user = c.users.authenticate(email, password);
-    if (!user) {
-      res.status(401).render("login", {
+    const key = `${email.trim().toLowerCase()}|${req.ip}`;
+
+    // Brute-force protection: lock the key out after too many failures.
+    const gate = c.loginLimiter.status(key);
+    if (gate.locked) {
+      const mins = Math.ceil(gate.retryAfterMs / 60000);
+      res.status(429).render("login", {
         title: "Sign in",
-        error: "Invalid email or password.",
+        error: `Too many failed attempts. Try again in about ${mins} minute(s).`,
         email,
         next,
       });
       return;
     }
+
+    const user = c.users.authenticate(email, password);
+    if (!user) {
+      const after = c.loginLimiter.recordFailure(key);
+      res.status(after.locked ? 429 : 401).render("login", {
+        title: "Sign in",
+        error: after.locked
+          ? "Too many failed attempts. This login is temporarily locked."
+          : "Invalid email or password.",
+        email,
+        next,
+      });
+      return;
+    }
+    c.loginLimiter.recordSuccess(key);
     c.users.recordLogin(user.id);
     const token = signSession({ uid: user.id, exp: sessionExpiry(14) }, config.sessionSecret);
     res.cookie(SESSION_COOKIE, token, {

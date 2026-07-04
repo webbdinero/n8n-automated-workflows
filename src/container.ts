@@ -7,10 +7,13 @@ import { EventRepository } from "./repositories/eventRepository.js";
 import { UsageRepository } from "./repositories/usageRepository.js";
 import { SubscriptionEventRepository } from "./repositories/subscriptionEventRepository.js";
 import { UserRepository } from "./repositories/userRepository.js";
+import { UserEventRepository } from "./repositories/userEventRepository.js";
 import { GrantService } from "./services/grantService.js";
 import { IngestService } from "./services/ingestService.js";
 import { ExportService } from "./services/exportService.js";
 import { SubscriptionService } from "./services/subscriptionService.js";
+import { UserAdminService } from "./services/userAdminService.js";
+import { LoginRateLimiter } from "./auth/loginRateLimiter.js";
 
 /**
  * Composition root. Wires repositories and services over a single SQLite
@@ -24,11 +27,14 @@ export function createContainer(db: DatabaseSync = getDb()) {
   const usage = new UsageRepository(db);
   const subscriptionEvents = new SubscriptionEventRepository(db);
   const users = new UserRepository(db);
+  const userEvents = new UserEventRepository(db);
 
   const grantService = new GrantService(grants, tasks, events);
   const ingestService = new IngestService(grantService);
   const exportService = new ExportService(grants, tasks, events, orgs);
   const subscriptionService = new SubscriptionService(orgs, subscriptionEvents);
+  const userAdminService = new UserAdminService(users, userEvents);
+  const loginLimiter = new LoginRateLimiter();
 
   return {
     db,
@@ -39,10 +45,13 @@ export function createContainer(db: DatabaseSync = getDb()) {
     usage,
     subscriptionEvents,
     users,
+    userEvents,
     grantService,
     ingestService,
     exportService,
     subscriptionService,
+    userAdminService,
+    loginLimiter,
   };
 }
 

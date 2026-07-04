@@ -39,6 +39,7 @@
       <p class="small muted">Only administrators can change the plan or billing status.</p>
     <% } else { %>
     <form method="post" action="/admin/subscription">
+      <%- include('partials/csrf') %>
       <div class="form-grid">
         <div class="field">
           <label for="plan">Plan</label>
@@ -87,6 +88,7 @@
     <hr class="sep" />
     <h3>Data operations</h3>
     <form method="post" action="/admin/recompute" style="margin-bottom:12px;">
+      <%- include('partials/csrf') %>
       <button class="btn" type="submit">Recompute all risk scores</button>
     </form>
     <div class="toolbar">
@@ -105,19 +107,23 @@
   </div>
   <% if (currentUser && currentUser.role === 'admin') { %>
     <form method="post" action="/admin/rotate-token" data-confirm="Rotate the API token? Existing integrations will stop working until updated.">
+      <%- include('partials/csrf') %>
       <button class="btn ghost small" type="submit">Rotate token</button>
     </form>
   <% } else { %>
     <p class="small muted">Only administrators can rotate the token.</p>
   <% } %>
   <hr class="sep" />
-  <h3>Operators</h3>
-  <div class="table-wrap">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 style="margin:0;">Operators</h3>
+    <% if (currentUser && currentUser.role === 'admin') { %><a class="btn ghost small" href="/admin/users">Manage users</a><% } %>
+  </div>
+  <div class="table-wrap" style="margin-top:8px;">
     <table>
-      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="nowrap">Last sign-in</th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th class="nowrap">Last sign-in</th></tr></thead>
       <tbody>
         <% users.forEach(function (u) { %>
-          <tr><td><%= u.name %></td><td><%= u.email %></td><td><%= humanize(u.role) %></td><td class="small nowrap"><%= u.last_login_at ? fmtDateTime(u.last_login_at) : '—' %></td></tr>
+          <tr><td><%= u.name %></td><td><%= u.email %></td><td><%= humanize(u.role) %></td><td><%= u.deactivated_at ? 'Deactivated' : 'Active' %></td><td class="small nowrap"><%= u.last_login_at ? fmtDateTime(u.last_login_at) : '—' %></td></tr>
         <% }); %>
       </tbody>
     </table>

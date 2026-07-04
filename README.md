@@ -130,13 +130,24 @@ and surfaced in Admin. Manage the plan at **Admin → Subscription** (`POST /adm
 ### Authentication
 
 - **Web UI:** session-based login (`/login`), scrypt-hashed passwords, signed
-  HttpOnly `SameSite=Lax` session cookie (Lax blocks cross-site POST → CSRF
-  mitigation for the pilot). Roles: `admin` (may change billing/subscription and
-  rotate the API token) vs `member`. The audit trail records the **real
-  signed-in user** as the actor on every change.
+  HttpOnly `SameSite=Lax` session cookie. Roles: `admin` (may change
+  billing/subscription, rotate the API token, manage users) vs `member`. The
+  audit trail records the **real signed-in user** as the actor on every change.
 - **JSON API:** per-org **bearer token** (`Authorization: Bearer <token>` or
   `x-api-key`). Without a valid token, every `/api/*` route returns `401`. Manage
   and rotate the token in **Admin → API access**.
+- **Login rate limiting:** failed logins are throttled per `email+IP`
+  (default **5 attempts / 15-min window**, then a **15-min lockout** → `429`).
+  In-memory (single-instance pilot); swap the Map for Redis to scale out.
+- **CSRF:** state-changing web POSTs (grant create/update, tasks, subscription,
+  token rotation, user management, import) require a session-bound token
+  (hidden `_csrf` field = HMAC of the session cookie); missing/invalid → `403`.
+  The bearer-token API is exempt (no ambient cookie). Layers on top of SameSite.
+- **User management** (**Admin → Manage users**, admin-only): list users, create
+  an operator with a **generated one-time password** (shown once), and
+  deactivate access. No self-signup, no in-app password change yet. A
+  deactivated account cannot log in and its existing session is treated as
+  signed-out. Every create/deactivate is written to an append-only user audit.
 
 ### API examples
 
@@ -230,8 +241,9 @@ and isolated.
   multipart deps; paste and manual entry are first-class.
 - **Billing is metered, not charged.** `usage_events` + plan entitlements + roles
   are the hooks; wiring a payment processor (e.g. Stripe) is the next commercial step.
-- **CSRF** relies on `SameSite=Lax` cookies (blocks cross-site POST). Token-based
-  CSRF protection on forms is a hardening follow-up.
+- **CSRF** uses per-session HMAC form tokens plus `SameSite=Lax` cookies.
+- **Login throttling** is in-memory (per instance) — fine for the single-instance
+  pilot; move to Redis for horizontal scale.
 
 ## Next 5 features (defensibility + recurring revenue)
 

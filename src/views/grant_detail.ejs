@@ -66,6 +66,7 @@
       <details>
         <summary style="cursor:pointer; font-weight:700;">Edit grant &amp; record review</summary>
         <form method="post" action="/grants/<%= grant.id %>" style="margin-top:14px;">
+          <%- include('partials/csrf') %>
           <div class="form-grid">
             <div class="field"><label>Status</label>
               <select name="status">
@@ -112,6 +113,7 @@
                   <td class="no-print">
                     <% if (t.status === 'open' || t.status === 'submitted') { %>
                       <form method="post" action="/grants/<%= grant.id %>/tasks/<%= t.id %>/complete" class="toolbar">
+                        <%- include('partials/csrf') %>
                         <select name="outcome" aria-label="Outcome">
                           <option value="">Auto (on-time/late)</option>
                           <% taskOutcomes.forEach(function (o) { %><option value="<%= o %>"><%= humanize(o) %></option><% }); %>
@@ -130,6 +132,7 @@
       <details class="no-print" style="margin-top:14px;">
         <summary style="cursor:pointer; font-weight:600;">+ Add reporting obligation</summary>
         <form method="post" action="/grants/<%= grant.id %>/tasks" style="margin-top:12px;">
+          <%- include('partials/csrf') %>
           <div class="form-grid">
             <div class="field"><label>Type</label>
               <select name="type">

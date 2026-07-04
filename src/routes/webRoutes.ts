@@ -438,6 +438,74 @@ export function registerWebRoutes(app: Express, c: Container): void {
     }),
   );
 
+  /* ------------------------------ User management ------------------------- */
+  function renderUsers(
+    res: Response,
+    extra: Record<string, unknown> = {},
+  ): void {
+    const org = res.locals.org;
+    res.render("admin_users", {
+      title: "Users",
+      users: c.users.listForOrg(org.id),
+      history: c.userAdminService.history(org.id, 25),
+      created: null,
+      error: null,
+      ...extra,
+    });
+  }
+
+  router.get(
+    "/admin/users",
+    requireAdmin(),
+    wrap((req, res) => {
+      renderUsers(res, { deactivated: req.query.deactivated === "1" });
+    }),
+  );
+
+  router.post(
+    "/admin/users",
+    requireAdmin(),
+    wrap((req, res) => {
+      const org = res.locals.org;
+      const role = req.body.role === "admin" ? "admin" : "member";
+      try {
+        const { user, password } = c.userAdminService.createUser(
+          org.id,
+          { email: String(req.body.email ?? ""), name: String(req.body.name ?? ""), role },
+          { actor: res.locals.actor },
+        );
+        // Show the one-time password inline (never via redirect/URL).
+        renderUsers(res, { created: { email: user.email, password } });
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          res.status(400);
+          renderUsers(res, { error: err.message });
+          return;
+        }
+        throw err;
+      }
+    }),
+  );
+
+  router.post(
+    "/admin/users/:id/deactivate",
+    requireAdmin(),
+    wrap((req, res) => {
+      const org = res.locals.org;
+      try {
+        c.userAdminService.deactivateUser(org.id, req.params.id!, { actor: res.locals.actor });
+        res.redirect("/admin/users?deactivated=1");
+      } catch (err) {
+        if (err instanceof ValidationError || err instanceof NotFoundError) {
+          res.status(err instanceof NotFoundError ? 404 : 400);
+          renderUsers(res, { error: err.message });
+          return;
+        }
+        throw err;
+      }
+    }),
+  );
+
   router.post(
     "/admin/subscription",
     requireAdmin(),

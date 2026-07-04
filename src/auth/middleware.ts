@@ -2,20 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import type { Container } from "../container.js";
 import { config } from "../config.js";
 import { SESSION_COOKIE, verifySession } from "./session.js";
-
-/** Parse the Cookie header into a map (no cookie-parser dependency). */
-function parseCookies(header: string | undefined): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!header) return out;
-  for (const part of header.split(";")) {
-    const idx = part.indexOf("=");
-    if (idx < 0) continue;
-    const k = part.slice(0, idx).trim();
-    const v = part.slice(idx + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
-  }
-  return out;
-}
+import { parseCookies } from "./cookies.js";
+import { deriveCsrf } from "./csrf.js";
 
 /** Paths reachable without a session (login flow, health, static assets). */
 function isPublicPath(path: string): boolean {
@@ -36,7 +24,12 @@ export function sessionLoader(c: Container) {
   return (req: Request, res: Response, next: NextFunction) => {
     const cookies = parseCookies(req.headers.cookie);
     const payload = verifySession(cookies[SESSION_COOKIE], config.sessionSecret);
-    res.locals.currentUser = payload ? c.users.findById(payload.uid) : null;
+    const user = payload ? c.users.findById(payload.uid) : null;
+    // A deactivated account's existing session is treated as signed-out.
+    res.locals.currentUser = user && !user.deactivated_at ? user : null;
+    res.locals.csrfToken = res.locals.currentUser
+      ? deriveCsrf(req, config.sessionSecret)
+      : null;
     next();
   };
 }

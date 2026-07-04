@@ -6,6 +6,7 @@ import { registerWebRoutes } from "./routes/webRoutes.js";
 import { registerApiRoutes } from "./routes/apiRoutes.js";
 import { registerAuthRoutes } from "./routes/authRoutes.js";
 import { sessionLoader, requireWebAuth } from "./auth/middleware.js";
+import { requireCsrf } from "./auth/csrf.js";
 import { deriveAlerts } from "./services/alertService.js";
 import { entitlementsFor } from "./domain/plans.js";
 import {
@@ -90,6 +91,10 @@ export function createApp(opts: AppOptions = {}): { app: Express; container: Con
     }
     next();
   });
+
+  // CSRF check for state-changing web POSTs (skips /api, /login, /logout).
+  // Runs after context so a rejected request still renders a full error page.
+  app.use(requireCsrf(config.sessionSecret));
 
   registerWebRoutes(app, container);
   registerApiRoutes(app, container);

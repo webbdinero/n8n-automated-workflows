@@ -86,8 +86,22 @@ export const userSchema = z.object({
   role: z.enum(USER_ROLES),
   created_at: z.string(),
   last_login_at: z.string().nullable(),
+  deactivated_at: z.string().nullable(),
 });
 export type User = z.infer<typeof userSchema>;
+
+/** Append-only audit of user-management actions. */
+export const userEventSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  at: z.string(),
+  actor: z.string(),
+  action: z.string(),
+  target_id: z.string().nullable(),
+  target_email: z.string().nullable(),
+  detail: z.string().nullable(),
+});
+export type UserEvent = z.infer<typeof userEventSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Grant — input (what an importer / form / API supplies)                     */
